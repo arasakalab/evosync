@@ -1,0 +1,14 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.repo.git/
+.agents/
+.codex/
+config.json
+sent_log.json
+send_run.log
+*.log
+dist/
+build/
+*.spec
