@@ -2,7 +2,62 @@
 
 GUI em Python (CustomTkinter) para enviar mensagens em massa via [Evolution API](https://doc.evolution-api.com).
 
-## Como rodar
+## Instalacao automatizada
+
+O modo recomendado e hibrido: a Evolution API roda em Docker com PostgreSQL e Redis, enquanto a interface do DisparoFacil roda localmente em Python.
+
+### Linux
+
+```bash
+cd ~/Desktop/EvoTeste
+bash installer/install_linux.sh
+```
+
+Depois da primeira instalacao, abra com:
+
+```bash
+bash installer/start_linux.sh
+```
+
+### Windows
+
+No PowerShell:
+
+```powershell
+cd caminho\para\EvoTeste
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\installer\install_windows.ps1
+```
+
+Depois da primeira instalacao, abra com duplo clique em `installer\start_windows.bat` ou `run_windows.bat`.
+
+### O que o instalador faz
+
+- verifica Docker e Docker Compose, mas nao instala Docker automaticamente;
+- cria `.venv` e instala `requirements.txt`;
+- cria `.env` do app se ele ainda nao existir;
+- cria `infra/evolution/.env` se ele ainda nao existir;
+- sobe `evolution-api`, `postgres` e `redis` com Docker Compose;
+- abre o app local com `python main.py`.
+
+Se o Docker nao estiver instalado, instale primeiro:
+
+- Linux: https://docs.docker.com/get-docker/
+- Windows: https://docs.docker.com/desktop/setup/install/windows-install/
+
+Para parar somente a stack Docker:
+
+```bash
+bash installer/stop_stack.sh
+```
+
+No Windows:
+
+```bat
+installer\stop_stack.bat
+```
+
+## Como rodar manualmente
 
 ### Linux
 
@@ -12,12 +67,6 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python3 main.py
-```
-
-Depois da primeira instalação, você também pode abrir com:
-
-```bash
-bash run_linux.sh
 ```
 
 ### Windows
@@ -30,11 +79,11 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Depois da primeira instalação, você também pode abrir dando duplo clique em `run_windows.bat`.
-
 Na primeira execução use a aba **Conexão** para preencher URL, API Key e nome da instância. A chave é gravada em `.env` com permissão `600` quando o sistema permite.
 
 Se você usa modelos pelo OpenCode, preencha **Modelo OpenCode** com `provider/model` na aba **Conexão**. Se deixar vazio, o app usa o modelo vision testado `nvidia/meta/llama-3.2-90b-vision-instruct`.
+
+O instalador gera a chave `AUTHENTICATION_API_KEY` em `infra/evolution/.env`. Copie esse valor para `EVO_APIKEY` no `.env` do app ou preencha pela aba **Conexão**.
 
 ## Fluxo
 

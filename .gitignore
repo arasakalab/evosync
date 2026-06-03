@@ -5,6 +5,7 @@ __pycache__/
 .repo.git/
 .agents/
 .codex/
+infra/evolution/.env
 config.json
 sent_log.json
 send_run.log

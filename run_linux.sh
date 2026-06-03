@@ -3,8 +3,4 @@ set -e
 
 cd "$(dirname "$0")"
 
-if [ -d ".venv" ]; then
-  . ".venv/bin/activate"
-fi
-
-python3 main.py
+exec bash installer/start_linux.sh
