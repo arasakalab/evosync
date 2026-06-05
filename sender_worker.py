@@ -69,6 +69,7 @@ class SenderWorker(threading.Thread):
         daily_limit: int,
         on_status: Callable[[Status], None],
         validate_first: bool = True,
+        skip_sent_history: bool = True,
     ):
         super().__init__(daemon=True)
         self.client = client
@@ -81,6 +82,7 @@ class SenderWorker(threading.Thread):
         self.daily_limit = max(1, int(daily_limit))
         self.on_status = on_status
         self.validate_first = validate_first
+        self.skip_sent_history = skip_sent_history
         self._pause_evt = threading.Event()
         self._pause_evt.set()  # set = not paused
         self._stop_evt = threading.Event()
@@ -236,7 +238,7 @@ class SenderWorker(threading.Thread):
                     continue
 
                 # checa se já enviou antes
-                if number in self._sent_today:
+                if self.skip_sent_history and number in self._sent_today:
                     self.status.error = ""
                     self.status.stage = "skip"
                     self.status.skipped += 1

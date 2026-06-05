@@ -91,6 +91,26 @@ O instalador gera a chave `AUTHENTICATION_API_KEY` em `infra/evolution/.env`. Co
 2. **Contatos** — importe um CSV (coluna obrigatória: `numero`) ou adicione manualmente. Campos extras (ex: `nome`, `empresa`) podem ser usados como placeholders na mensagem.
 3. **Mensagem** — escreva o texto usando `{nome}`, `{empresa}` etc. Anexe 1 mídia opcional (imagem/vídeo/PDF). Use **Pré-visualizar**.
 4. **Disparo** — configure delay mínimo/máximo e limite diário. Clique em **Iniciar**. Pode pausar/retomar/parar a qualquer hora.
+5. **Agenda** — escolha data, hora, mensagem e contatos para disparo automático quando o app estiver aberto.
+
+## Mensagens agendadas
+
+Na aba **Agenda**, crie um envio único informando data (`DD/MM/AAAA`), hora (`HH:MM`) e mensagem. O agendamento usa a mídia opcional, tipo de mídia, delays, limite diário e validação configurados no momento em que é salvo.
+
+Você pode escolher entre:
+
+- **Congelar contatos atuais** — salva uma cópia da lista carregada naquele momento.
+- **Usar contatos da tela no horário** — usa a lista que estiver aberta quando chegar o horário.
+
+Os agendamentos ficam em `scheduled_messages.json`. Se o app estiver fechado no horário marcado, o agendamento será marcado como `missed` e não será enviado atrasado.
+
+Na lista da Agenda, você pode selecionar uma ou mais mensagens para excluir. Mensagens pendentes também podem ser carregadas no formulário com **Editar pendente** e salvas novamente com **Salvar edição**.
+
+## Histórico de envios
+
+O app mantém `sent_log.json` para registrar números já enviados. Na aba **Disparo**, a opção **Reenviar números já no histórico** permite enviar uma nova campanha para esses mesmos números sem precisar clicar em **Resetar histórico**.
+
+Mesmo com essa opção marcada, os envios bem-sucedidos continuam sendo registrados no histórico.
 
 ## IA para criar mensagem
 
@@ -111,6 +131,7 @@ A IA extrai campanha, loja, produtos, preços, unidades e validade quando estive
 
 - `.env` — credenciais (chmod 600)
 - `config.json` — preferências de UI (delays, última mensagem)
+- `scheduled_messages.json` — campanhas agendadas
 - `sent_log.json` — números já enviados (não reenviar)
 - `send_run.log` — log textual de cada execução
 

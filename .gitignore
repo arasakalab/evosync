@@ -8,6 +8,7 @@ __pycache__/
 infra/evolution/.env
 config.json
 sent_log.json
+scheduled_messages.json
 send_run.log
 *.log
 dist/

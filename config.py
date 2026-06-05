@@ -25,6 +25,7 @@ class Settings:
     delay_max: int = 25
     daily_limit: int = 200
     last_message: str = ""
+    resend_sent: bool = True
 
 
 def load_settings() -> Settings:
@@ -49,6 +50,7 @@ def load_settings() -> Settings:
         delay_max=int(json_data.get("delay_max", 25)),
         daily_limit=int(json_data.get("daily_limit", 200)),
         last_message=json_data.get("last_message", ""),
+        resend_sent=bool(json_data.get("resend_sent", True)),
     )
     if s.delay_min < 1:
         s.delay_min = 1
