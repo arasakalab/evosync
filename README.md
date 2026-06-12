@@ -89,6 +89,7 @@ O instalador gera a chave `AUTHENTICATION_API_KEY` em `infra/evolution/.env`. Co
 
 1. **Conexão** — teste ping + status da instância (`connectionState`).
 2. **Contatos** — importe um CSV (coluna obrigatória: `numero`) ou adicione manualmente. Campos extras (ex: `nome`, `empresa`) podem ser usados como placeholders na mensagem.
+   Use a busca para localizar contatos por nome, número ou qualquer campo extra antes de selecionar/remover.
 3. **Mensagem** — escreva o texto usando `{nome}`, `{empresa}` etc. Anexe 1 mídia opcional (imagem/vídeo/PDF). Use **Pré-visualizar**.
 4. **Disparo** — configure delay mínimo/máximo e limite diário. Clique em **Iniciar**. Pode pausar/retomar/parar a qualquer hora.
 5. **Agenda** — escolha data, hora, mensagem e contatos para disparo automático quando o app estiver aberto.
@@ -131,6 +132,7 @@ A IA extrai campanha, loja, produtos, preços, unidades e validade quando estive
 
 - `.env` — credenciais (chmod 600)
 - `config.json` — preferências de UI (delays, última mensagem)
+- `persisted_contacts.json` — contatos carregados na tela
 - `scheduled_messages.json` — campanhas agendadas
 - `sent_log.json` — números já enviados (não reenviar)
 - `send_run.log` — log textual de cada execução

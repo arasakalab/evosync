@@ -104,6 +104,29 @@ class EvoClient:
         )
         return (str(state) if state else None), "OK"
 
+    def instance_exists(self) -> Tuple[bool, str]:
+        """Checa rapidamente se a instância existe na Evolution.
+
+        Retorna (True, "ok") se o endpoint responde 200.
+        Retorna (False, mensagem) em qualquer falha; a mensagem identifica
+        o motivo (404, conexão, etc.) para que o caller possa decidir
+        o que fazer (ex.: marcar agendamento como failed).
+        """
+        try:
+            r = self._s.get(
+                self._url("instance", "connectionState", self.instance),
+                timeout=self.timeout,
+            )
+        except Exception as e:
+            return False, f"sem_conexao: {e}"
+        if r.status_code == 200:
+            return True, "ok"
+        if r.status_code == 404:
+            return False, f"instancia_inexistente: {r.text[:200]}"
+        if r.status_code in (401, 403):
+            return False, f"autenticacao: HTTP {r.status_code}"
+        return False, f"http_{r.status_code}: {r.text[:200]}"
+
     def send_text(self, number: str, text: str) -> Tuple[bool, str]:
         url = self._url("message", "sendText", self.instance)
         payload = {"number": number, "text": text}

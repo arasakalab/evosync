@@ -193,7 +193,19 @@ class SenderWorker(threading.Thread):
                     if data is None:
                         self.status.error = f"Falha na validação prévia: {err}"
                         self.on_status(self.status)
-                        # se a validacao falhou, nao bloqueia — tenta enviar mesmo assim
+                        # instancia inexistente / sem conexao -> aborta tudo,
+                        # nao adianta continuar e queimar 1 chamada por contato
+                        fatal = (
+                            "instance does not exist" in err
+                            or "404" in err
+                            or "401" in err
+                            or "403" in err
+                        )
+                        if fatal:
+                            self.status.pending = 0
+                            self._stop_evt.set()
+                            return
+                        # erro transitorio: tenta enviar mesmo assim
                         break
                     for d in data:
                         num = (d.get("number") or "").lstrip("+")
@@ -262,6 +274,19 @@ class SenderWorker(threading.Thread):
                 self.status.last_message = c.render(self.template)[:120]
                 self.on_status(self.status)
                 state, err = self.client.connection_state()
+                if state is None and err and (
+                    "instance does not exist" in err
+                    or "404" in err
+                    or "401" in err
+                    or "403" in err
+                ):
+                    self.status.error = (
+                        f"Instância indisponível: {err}. Abortando envio."
+                    )
+                    self.on_status(self.status)
+                    self.status.pending = 0
+                    self._stop_evt.set()
+                    break
                 if state and state.lower() not in ("open", "connected", "online"):
                     self.status.error = f"Instância {state}; aguardando 30s"
                     self.on_status(self.status)

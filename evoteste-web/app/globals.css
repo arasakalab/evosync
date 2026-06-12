@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: 11 20 17;
+    --panel: 16 28 24;
+    --panel-alt: 19 34 29;
+    --border: 36 59 51;
+    --text: 232 245 239;
+    --muted: 142 163 154;
+    --primary: 31 157 101;
+    --primary-hover: 24 130 81;
+    --blue: 47 129 247;
+    --blue-hover: 31 111 235;
+    --danger: 194 65 61;
+    --danger-hover: 159 48 45;
+    --neutral: 38 53 47;
+    --neutral-hover: 49 71 63;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    @apply bg-bg text-text antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 0% 0%, rgba(31, 157, 101, 0.06) 0%, transparent 40%),
+      radial-gradient(circle at 100% 100%, rgba(47, 129, 247, 0.04) 0%, transparent 50%),
+      #0b1411;
+  }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-bg;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-neutral rounded-md;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-hover;
+  }
+
+  /* Selection */
+  ::selection {
+    background: rgba(31, 157, 101, 0.35);
+    color: #e8f5ef;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-border bg-panel-alt;
+  }
+  .panel-flat {
+    @apply rounded-md border border-border bg-panel;
+  }
+  .input-base {
+    @apply h-10 w-full rounded-md border border-border bg-[#0d1713] px-3 text-sm text-text
+           placeholder:text-muted/60
+           focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60
+           transition-colors;
+  }
+  .label-muted {
+    @apply text-xs font-medium text-muted uppercase tracking-wide;
+  }
+  .section-title {
+    @apply text-2xl font-bold text-text;
+  }
+  .section-subtitle {
+    @apply text-sm text-muted mt-1;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+}

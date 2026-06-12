@@ -16,6 +16,7 @@ from typing import Any, List, Optional
 import customtkinter as ctk
 
 from config import Settings, load_settings, save_settings
+from contacts_store import load_contacts, save_contacts
 from evo_client import EvoClient, normalize_number
 from opencode_client import OpenCodeMessageClient
 from scheduler_store import load_schedules, new_schedule_id, now_iso, save_schedules
@@ -57,7 +58,7 @@ class App(ctk.CTk):
         self.configure(fg_color=BG)
 
         self.settings: Settings = load_settings()
-        self.contacts: List[Contact] = []
+        self.contacts: List[Contact] = load_contacts()
         self.worker: Optional[SenderWorker] = None
         self.client: Optional[EvoClient] = None
         self._csv_columns: List[str] = []
@@ -72,6 +73,7 @@ class App(ctk.CTk):
 
         self._build_ui()
         self._load_into_ui()
+        self._restore_contacts_into_ui()
         self._mark_missed_schedules_on_startup()
         self._refresh_schedule_tree()
         self.bind("<Configure>", self._on_window_resize)
@@ -302,6 +304,21 @@ class App(ctk.CTk):
         ]
         self.lbl_contacts_count = ctk.CTkLabel(top, text="0 contatos", text_color=TEXT, font=ctk.CTkFont(size=13, weight="bold"))
         self.lbl_contacts_count.grid(row=0, column=5, padx=12, pady=6, sticky="e")
+
+        search = self._panel(f)
+        search.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(search, text="Pesquisar", text_color=MUTED).grid(row=0, column=0, padx=(16, 8), pady=10, sticky="w")
+        self.entry_contact_search = ctk.CTkEntry(
+            search,
+            height=36,
+            placeholder_text="nome, número ou campo extra...",
+            fg_color="#0d1713",
+            border_color=BORDER,
+        )
+        self.entry_contact_search.grid(row=0, column=1, padx=8, pady=10, sticky="ew")
+        self.entry_contact_search.bind("<KeyRelease>", lambda _event: self._on_contact_search_changed())
+        self._button(search, "Limpar busca", self._clear_contact_search, width=120).grid(row=0, column=2, padx=(6, 16), pady=10)
+
         self.lbl_contacts_hint = ctk.CTkLabel(
             f,
             text="Nenhum contato carregado. Importe um CSV, busque no WhatsApp ou adicione manualmente.",
@@ -566,6 +583,26 @@ class App(ctk.CTk):
             self.txt_msg.insert("1.0", self.settings.last_message)
         self._refresh_history_count()
 
+    def _restore_contacts_into_ui(self):
+        self._csv_columns = self._columns_from_contacts()
+        self._refresh_tree()
+        self._refresh_contacts_count()
+        if self.contacts:
+            self._set_status(f"{len(self.contacts)} contatos restaurados")
+
+    def _columns_from_contacts(self) -> list[str]:
+        columns = ["numero"]
+        seen = {"numero"}
+        for contact in self.contacts:
+            for key in contact.fields.keys():
+                if key not in seen:
+                    seen.add(key)
+                    columns.append(key)
+        return columns
+
+    def _save_contacts(self):
+        save_contacts(self.contacts)
+
     def _collect_settings(self) -> Settings:
         s = Settings()
         s.url = self.entry_url.get().strip() or "http://localhost:8080"
@@ -615,12 +652,57 @@ class App(ctk.CTk):
             pass
 
     def _refresh_contacts_count(self):
-        self.lbl_contacts_count.configure(text=f"{len(self.contacts)} contatos")
+        visible = self._filtered_contacts_count()
+        if visible != len(self.contacts):
+            self.lbl_contacts_count.configure(text=f"{visible}/{len(self.contacts)} contatos")
+        else:
+            self.lbl_contacts_count.configure(text=f"{len(self.contacts)} contatos")
         if hasattr(self, "lbl_contacts_hint"):
             if self.contacts:
-                self.lbl_contacts_hint.configure(text="Selecione uma ou mais linhas para remover contatos antes do disparo.")
+                if visible != len(self.contacts):
+                    self.lbl_contacts_hint.configure(text="Busca aplicada. Selecione uma ou mais linhas filtradas para remover contatos.")
+                else:
+                    self.lbl_contacts_hint.configure(text="Selecione uma ou mais linhas para remover contatos antes do disparo.")
             else:
                 self.lbl_contacts_hint.configure(text="Nenhum contato carregado. Importe um CSV, busque no WhatsApp ou adicione manualmente.")
+
+    def _contact_search_term(self) -> str:
+        if not hasattr(self, "entry_contact_search"):
+            return ""
+        return self.entry_contact_search.get().strip().lower()
+
+    def _contact_matches_search(self, contact: Contact, term: str) -> bool:
+        if not term:
+            return True
+        haystack = [contact.number, *[str(value) for value in contact.fields.values()], *[str(key) for key in contact.fields.keys()]]
+        text = " ".join(haystack).lower()
+        digits_term = re.sub(r"\D+", "", term)
+        digits_number = re.sub(r"\D+", "", contact.number)
+        return term in text or bool(digits_term and digits_term in digits_number)
+
+    def _filtered_contact_indexes(self) -> list[int]:
+        term = self._contact_search_term()
+        return [
+            index
+            for index, contact in enumerate(self.contacts)
+            if self._contact_matches_search(contact, term)
+        ]
+
+    def _filtered_contacts_count(self) -> int:
+        if not self._contact_search_term():
+            return len(self.contacts)
+        return len(self._filtered_contact_indexes())
+
+    def _clear_contact_search(self):
+        if hasattr(self, "entry_contact_search"):
+            self.entry_contact_search.delete(0, "end")
+        self._refresh_tree()
+        self._refresh_contacts_count()
+        self._set_status("Busca de contatos limpa")
+
+    def _on_contact_search_changed(self):
+        self._refresh_tree()
+        self._refresh_contacts_count()
 
     def _history_count(self) -> int:
         from sender_worker import SENT_LOG
@@ -1040,6 +1122,31 @@ class App(ctk.CTk):
             self._fail_schedule(schedule, "Credenciais da Evolution ausentes ou inválidas.")
             return
 
+        settings = self._collect_settings()
+        exists, info = client.instance_exists()
+        if not exists:
+            schedule["status"] = "running"
+            schedule["updated_at"] = now_iso()
+            self._save_schedules()
+            if info.startswith("instancia_inexistente"):
+                self._fail_schedule(
+                    schedule,
+                    f"Instância '{settings.instance}' não existe na Evolution. "
+                    f"Crie a instância ou ajuste EVO_INSTANCE no .env.",
+                )
+            elif info.startswith("autenticacao"):
+                self._fail_schedule(
+                    schedule,
+                    f"API Key da Evolution rejeitada ({info}). Verifique EVO_APIKEY no .env.",
+                )
+            else:
+                self._fail_schedule(
+                    schedule,
+                    f"Não consegui contatar a Evolution ({info}). "
+                    f"Verifique EVO_URL e se o servidor está no ar.",
+                )
+            return
+
         schedule["status"] = "running"
         schedule["updated_at"] = now_iso()
         schedule["error"] = ""
@@ -1313,6 +1420,7 @@ class App(ctk.CTk):
                     self.contacts.append(Contact(number=num, fields=fields))
                     added += 1
                 self._csv_columns = cols
+                self._save_contacts()
                 self._refresh_tree()
                 self._refresh_contacts_count()
                 self._set_status(f"{added} contatos importados de {Path(path).name}")
@@ -1376,6 +1484,8 @@ class App(ctk.CTk):
                         self.contacts.append(c)
                         existing.add(c.number)
                         added += 1
+                self._csv_columns = self._columns_from_contacts()
+                self._save_contacts()
                 self._refresh_tree()
                 self._refresh_contacts_count()
                 self._set_status(f"{added} contatos importados do WhatsApp ({len(valid)} encontrados, {len(valid)-added} já existiam)")
@@ -1409,6 +1519,8 @@ class App(ctk.CTk):
             if key != "numero"
         }
         self.contacts.append(Contact(number=num, fields=fields))
+        self._csv_columns = self._columns_from_contacts()
+        self._save_contacts()
         self._refresh_tree()
         self._refresh_contacts_count()
         self._set_status("1 contato adicionado")
@@ -1447,6 +1559,8 @@ class App(ctk.CTk):
             for index, contact in enumerate(self.contacts)
             if index not in selected_indexes
         ]
+        self._csv_columns = self._columns_from_contacts()
+        self._save_contacts()
         self._refresh_tree()
         self._refresh_contacts_count()
         suffix = "removido" if removed_count == 1 else "removidos"
@@ -1458,6 +1572,8 @@ class App(ctk.CTk):
             return
         if self._dialog("Limpar contatos", "Limpar toda a lista de contatos carregada na tela?", kind="danger", confirm=True):
             self.contacts.clear()
+            self._csv_columns = ["numero"]
+            self._save_contacts()
             self._refresh_tree()
             self._refresh_contacts_count()
             self._set_status("Lista de contatos limpa")
@@ -1465,7 +1581,8 @@ class App(ctk.CTk):
     def _refresh_tree(self):
         for i in self.tree.get_children():
             self.tree.delete(i)
-        for index, c in enumerate(self.contacts):
+        for index in self._filtered_contact_indexes():
+            c = self.contacts[index]
             preview = ", ".join(f"{k}={v}" for k, v in list(c.fields.items())[:3])
             self.tree.insert("", "end", iid=str(index), values=(c.number, preview))
 

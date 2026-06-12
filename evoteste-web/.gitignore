@@ -1,0 +1,24 @@
+# Node / Next
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Persistência do app (espelha o que já existe no app Python)
+# Mantemos estes versionados por padrão (são apenas defaults), mas uploads sim não.
+data/uploads/
