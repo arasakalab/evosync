@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { createInvite, listInvites } from "@/server/store/invites";
+import { logAudit } from "@/server/store/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,12 @@ export async function POST(req: NextRequest) {
       role,
       createdBy: session.user.id,
       expiresInDays: expiresInDays ? Number(expiresInDays) : undefined,
+    });
+    logAudit({
+      tenantId,
+      userId: session.user.id,
+      action: "invite.created",
+      details: { inviteId: inv.id, email: inv.email, role: inv.role, expiresInDays: inv.expiresAt },
     });
     const base = req.nextUrl.origin;
     return NextResponse.json({

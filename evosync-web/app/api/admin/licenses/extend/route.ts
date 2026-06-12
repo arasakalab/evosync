@@ -12,6 +12,7 @@ import { extendLicense, getActiveLicense, listLicenses } from "@/lib/license";
 import { getDb, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { logAudit } from "@/server/store/audit";
 
 const bodySchema = z.object({
   tenantId: z.string().min(1),
@@ -67,6 +68,12 @@ export async function POST(req: NextRequest) {
       session.user.id,
       parsed.data.notes
     );
+    logAudit({
+      tenantId: parsed.data.tenantId,
+      userId: session.user.id,
+      action: "license.extended",
+      details: { days: parsed.data.days, newExpiresAt: newLicense.expiresAt, notes: parsed.data.notes },
+    });
     return NextResponse.json({ license: newLicense });
   } catch (e: any) {
     return NextResponse.json(

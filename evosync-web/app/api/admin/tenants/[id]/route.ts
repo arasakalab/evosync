@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getDb, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { logAudit } from "@/server/store/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -40,9 +41,18 @@ export async function PATCH(
   if (!t) {
     return NextResponse.json({ error: "Tenant não encontrado" }, { status: 404 });
   }
+  const prev = t.status;
   db.update(schema.tenants)
     .set({ status, updatedAt: new Date().toISOString() })
     .where(eq(schema.tenants.id, params.id))
     .run();
+  if (prev !== status) {
+    logAudit({
+      tenantId: t.id,
+      userId: session.user.id,
+      action: status === "active" ? "tenant.activated" : "tenant.suspended",
+      details: { from: prev, to: status, name: t.name, slug: t.slug },
+    });
+  }
   return NextResponse.json({ ok: true });
 }

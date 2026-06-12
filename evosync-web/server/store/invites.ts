@@ -50,6 +50,16 @@ export function getInviteByToken(token: string): InviteRow | null {
   return r ? rowToInvite(r) : null;
 }
 
+export function getInviteById(id: string): InviteRow | null {
+  const db = getDb();
+  const r = db
+    .select()
+    .from(schema.invites)
+    .where(eq(schema.invites.id, id))
+    .get();
+  return r ? rowToInvite(r) : null;
+}
+
 export interface CreateInviteArgs {
   tenantId: string;
   email: string;

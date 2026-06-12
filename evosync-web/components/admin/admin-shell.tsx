@@ -12,6 +12,7 @@ import {
   Shield,
   AlertTriangle,
   Bell,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,7 @@ const NAV = [
   { href: "/admin/licenses", label: "Licenças", icon: KeyRound },
   { href: "/admin/invites", label: "Convites", icon: UserPlus },
   { href: "/admin/users", label: "Usuários", icon: Users },
+  { href: "/admin/audit", label: "Auditoria", icon: ScrollText },
 ];
 
 export default function AdminShell({ user, stats, children }: AdminShellProps) {

@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 import { authConfig } from "@/lib/auth.config";
+import { logAudit } from "@/server/store/audit";
 
 declare module "next-auth" {
   interface Session {
@@ -58,11 +59,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .all();
 
         const user = found[0];
-        if (!user) return null;
-        if (user.status !== "active") return null;
+        if (!user) {
+          logAudit({
+            action: "auth.login.failed",
+            details: { email, reason: "user_not_found" },
+          });
+          return null;
+        }
+        if (user.status !== "active") {
+          logAudit({
+            tenantId: user.tenantId,
+            userId: user.id,
+            action: "auth.login.failed",
+            details: { email, reason: "user_inactive" },
+          });
+          return null;
+        }
 
         const ok = await verifyPassword(password, user.passwordHash);
-        if (!ok) return null;
+        if (!ok) {
+          logAudit({
+            tenantId: user.tenantId,
+            userId: user.id,
+            action: "auth.login.failed",
+            details: { email, reason: "bad_password" },
+          });
+          return null;
+        }
 
         // Atualiza last_login_at (best-effort)
         try {
@@ -73,6 +96,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         } catch {
           /* best-effort */
         }
+
+        logAudit({
+          tenantId: user.tenantId,
+          userId: user.id,
+          action: "auth.login.success",
+          details: { email },
+        });
 
         return {
           id: user.id,

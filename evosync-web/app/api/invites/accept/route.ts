@@ -7,6 +7,7 @@ import {
   markInviteUsed,
 } from "@/server/store/invites";
 import { hashPassword } from "@/lib/password";
+import { logAudit } from "@/server/store/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +94,13 @@ export async function POST(req: NextRequest) {
     .run();
 
   markInviteUsed(inv.id);
+
+  logAudit({
+    tenantId: inv.tenantId,
+    userId,
+    action: "user.created_via_invite",
+    details: { email: inv.email, role: inv.role, name: String(name).trim() },
+  });
 
   return NextResponse.json({
     ok: true,

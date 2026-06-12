@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { getDb, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+import { logAudit } from "@/server/store/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +104,13 @@ export async function POST(req: NextRequest) {
       createdBy: session.user.id,
     })
     .run();
+
+  logAudit({
+    tenantId: id,
+    userId: session.user.id,
+    action: "tenant.created",
+    details: { name, slug, licenseDays: days, expiresAt: exp },
+  });
 
   return NextResponse.json({ ok: true, id });
 }
