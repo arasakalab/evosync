@@ -7,12 +7,12 @@ $EvolutionEnv = Join-Path $EvolutionDir ".env"
 
 function Write-Step($Message) {
     Write-Host ""
-    Write-Host "[DisparoFacil] $Message"
+    Write-Host "[EvoSync] $Message"
 }
 
 function Fail($Message) {
     Write-Host ""
-    Write-Error "[DisparoFacil] ERRO: $Message"
+    Write-Error "[EvoSync] ERRO: $Message"
     exit 1
 }
 

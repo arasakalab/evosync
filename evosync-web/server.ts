@@ -43,13 +43,13 @@ async function main() {
   server.listen(port, () => {
     // eslint-disable-next-line no-console
     console.log(
-      `\n  EvoTeste web rodando em:\n  → http://localhost:${port}\n  → WebSocket: ws://localhost:${port}/ws\n`
+      `\n  EvoSync web rodando em:\n  → http://localhost:${port}\n  → WebSocket: ws://localhost:${port}/ws\n`
     );
   });
 
   const shutdown = async () => {
     // eslint-disable-next-line no-console
-    console.log("Encerrando EvoTeste web...");
+    console.log("Encerrando EvoSync web...");
     stopSchedulerLoop();
     await sender.dispose();
     server.close(() => process.exit(0));

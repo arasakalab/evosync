@@ -25,7 +25,7 @@ export function Sidebar({
         </div>
         <div className="flex flex-col leading-tight">
           <span className="text-sm font-bold tracking-tight text-text">
-            EvoTeste
+            EvoSync
           </span>
           <span className="text-[10px] uppercase tracking-wider text-muted">
             Web · v1

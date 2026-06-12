@@ -33,7 +33,7 @@ export function StatusBar() {
         </span>
       </div>
       <div className="flex items-center gap-3 shrink-0">
-        <span className="hidden md:inline">EvoTeste Web · Next.js</span>
+        <span className="hidden md:inline">EvoSync Web · Next.js</span>
         <span className="font-mono">{now}</span>
       </div>
     </footer>

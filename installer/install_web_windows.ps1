@@ -4,10 +4,10 @@ $RootDir = Resolve-Path (Join-Path $PSScriptRoot "..")
 $AppEnv = Join-Path $RootDir ".env"
 $EvolutionDir = Join-Path $RootDir "infra\evolution"
 $EvolutionEnv = Join-Path $EvolutionDir ".env"
-$WebDir = Join-Path $RootDir "evoteste-web"
+$WebDir = Join-Path $RootDir "evosync-web"
 
-function Info($msg) { Write-Host "`n[EvoTeste] $msg" }
-function Fail($msg) { Write-Host "`n[EvoTeste] ERRO: $msg" -ForegroundColor Red; exit 1 }
+function Info($msg) { Write-Host "`n[EvoSync] $msg" }
+function Fail($msg) { Write-Host "`n[EvoSync] ERRO: $msg" -ForegroundColor Red; exit 1 }
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
   Fail "Docker nao encontrado. Instale o Docker Desktop: https://docs.docker.com/desktop/setup/install/windows-install/"
@@ -20,15 +20,15 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 $nodeMajor = [int](node -p 'process.versions.node.split(".")[0]')
 if ($nodeMajor -lt 18) { Fail "Node 18+ necessario. Detectado: $(node --version)" }
 
-if (-not (Test-Path $WebDir)) { Fail "Diretorio evoteste-web nao encontrado." }
+if (-not (Test-Path $WebDir)) { Fail "Diretorio evosync-web nao encontrado." }
 
 if (-not (Test-Path (Join-Path $WebDir "node_modules"))) {
-  Info "Instalando dependencias do evoteste-web (npm install)..."
+  Info "Instalando dependencias do evosync-web (npm install)..."
   Push-Location $WebDir
   npm install
   Pop-Location
 } else {
-  Info "Dependencias do evoteste-web ja instaladas"
+  Info "Dependencias do evosync-web ja instaladas"
 }
 
 if (-not (Test-Path $AppEnv)) {
@@ -87,5 +87,5 @@ Pop-Location
 
 Info "Instalacao concluida"
 Write-Host "`nEvolution API: http://localhost:8080"
-Write-Host "EvoTeste web:  http://localhost:3000`n"
+Write-Host "EvoSync web:   http://localhost:3000`n"
 Write-Host "Para iniciar: installer\start_web_windows.bat`n"

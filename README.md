@@ -1,15 +1,15 @@
-# EvoTeste — Disparador em massa (Evolution API v2)
+# EvoSync — Disparador em massa (Evolution API v2)
 
 GUI em Python (CustomTkinter) para enviar mensagens em massa via [Evolution API](https://doc.evolution-api.com).
 
 ## Instalacao automatizada
 
-O modo recomendado e hibrido: a Evolution API roda em Docker com PostgreSQL e Redis, enquanto a interface do DisparoFacil roda localmente em Python.
+O modo recomendado e hibrido: a Evolution API roda em Docker com PostgreSQL e Redis, enquanto a interface do EvoSync roda localmente em Python.
 
 ### Linux
 
 ```bash
-cd ~/Desktop/EvoTeste
+cd ~/Desktop/EvoSync
 bash installer/install_linux.sh
 ```
 
@@ -24,7 +24,7 @@ bash installer/start_linux.sh
 No PowerShell:
 
 ```powershell
-cd caminho\para\EvoTeste
+cd caminho\para\EvoSync
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\installer\install_windows.ps1
 ```
@@ -62,7 +62,7 @@ installer\stop_stack.bat
 ### Linux
 
 ```bash
-cd ~/Desktop/EvoTeste
+cd ~/Desktop/EvoSync
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -72,7 +72,7 @@ python3 main.py
 ### Windows
 
 ```bat
-cd caminho\para\EvoTeste
+cd caminho\para\EvoSync
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
@@ -144,7 +144,7 @@ O caminho recomendado é usar PyInstaller separadamente em cada sistema.
 ```bash
 pip install -r requirements.txt
 pip install -r requirements-build.txt
-pyinstaller --onefile --windowed --name EvoTeste main.py
+pyinstaller --onefile --windowed --name EvoSync main.py
 ```
 
 No Linux, gere o executável em uma máquina Linux. No Windows, gere em uma máquina Windows. Mantenha `.env`, `config.json`, `sent_log.json` e `send_run.log` junto do executável quando quiser preservar configurações e histórico.

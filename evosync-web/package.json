@@ -1,8 +1,8 @@
 {
-  "name": "evoteste-web",
+  "name": "evosync-web",
   "version": "1.0.0",
   "private": true,
-  "description": "EvoTeste — Disparador em massa via Evolution API (versão web)",
+  "description": "EvoSync — Disparador em massa via Evolution API (versão web)",
   "scripts": {
     "dev": "tsx watch server.ts",
     "build": "next build",

@@ -18,9 +18,9 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EvoTeste — Disparador via Evolution API",
+  title: "EvoSync — Disparador via Evolution API",
   description:
-    "Disparador em massa de mensagens WhatsApp via Evolution API. UI web profissional em Next.js.",
+    "EvoSync — Disparador em massa de mensagens WhatsApp via Evolution API. UI web profissional em Next.js.",
 };
 
 export const viewport: Viewport = {

@@ -16,14 +16,14 @@ dist/
 build/
 *.spec
 
-# EvoTeste Web (Next.js)
-evoteste-web/node_modules/
-evoteste-web/.next/
-evoteste-web/out/
-evoteste-web/data/uploads/
-evoteste-web/.env
+# EvoSync Web (Next.js)
+evosync-web/node_modules/
+evosync-web/.next/
+evosync-web/out/
+evosync-web/data/uploads/
+evosync-web/.env
 
 
-# Uploads locais do evoteste-web (jamais versionar)
-evoteste-web/uploads/*
-!evoteste-web/uploads/.gitkeep
+# Uploads locais do evosync-web (jamais versionar)
+evosync-web/uploads/*
+!evosync-web/uploads/.gitkeep

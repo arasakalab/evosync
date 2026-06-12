@@ -36,7 +36,7 @@ export function Header() {
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15 text-primary">
           <Send className="h-4 w-4" />
         </div>
-        <span className="font-bold tracking-tight">EvoTeste</span>
+        <span className="font-bold tracking-tight">EvoSync</span>
       </div>
       <div className="flex items-center gap-2 md:gap-3 ml-auto">
         <div className="hidden md:flex items-center gap-2 rounded-md border border-border bg-panel/60 px-3 py-1.5 text-xs">

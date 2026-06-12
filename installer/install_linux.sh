@@ -7,11 +7,11 @@ EVOLUTION_DIR="$ROOT_DIR/infra/evolution"
 EVOLUTION_ENV="$EVOLUTION_DIR/.env"
 
 info() {
-  printf '\n[DisparoFacil] %s\n' "$1"
+  printf '\n[EvoSync] %s\n' "$1"
 }
 
 fail() {
-  printf '\n[DisparoFacil] ERRO: %s\n' "$1" >&2
+  printf '\n[EvoSync] ERRO: %s\n' "$1" >&2
   exit 1
 }
 

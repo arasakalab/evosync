@@ -1,4 +1,4 @@
-"""EvoTeste — Disparador em massa via Evolution API."""
+"""EvoSync — Disparador em massa via Evolution API."""
 from __future__ import annotations
 
 import csv
@@ -48,7 +48,7 @@ NEUTRAL_HOVER = "#31473f"
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("EvoTeste — Disparador em massa")
+        self.title("EvoSync — Disparador em massa")
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
         start_w = min(1120, max(760, screen_w - 80))
@@ -87,7 +87,7 @@ class App(ctk.CTk):
         header.pack(fill="x", padx=18, pady=(16, 4))
         ctk.CTkLabel(
             header,
-            text="EvoTeste",
+            text="EvoSync",
             text_color=TEXT,
             font=ctk.CTkFont(size=28, weight="bold"),
         ).pack(side="left")

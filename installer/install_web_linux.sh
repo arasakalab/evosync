@@ -5,14 +5,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_ENV="$ROOT_DIR/.env"
 EVOLUTION_DIR="$ROOT_DIR/infra/evolution"
 EVOLUTION_ENV="$EVOLUTION_DIR/.env"
-WEB_DIR="$ROOT_DIR/evoteste-web"
+WEB_DIR="$ROOT_DIR/evosync-web"
 
 info() {
-  printf '\n[EvoTeste] %s\n' "$1"
+  printf '\n[EvoSync] %s\n' "$1"
 }
 
 fail() {
-  printf '\n[EvoTeste] ERRO: %s\n' "$1" >&2
+  printf '\n[EvoSync] ERRO: %s\n' "$1" >&2
   exit 1
 }
 
@@ -42,14 +42,14 @@ if [ "${NODE_MAJOR}" -lt 18 ]; then
 fi
 
 if [ ! -d "$WEB_DIR" ]; then
-  fail "Diretorio evoteste-web nao encontrado."
+  fail "Diretorio evosync-web nao encontrado."
 fi
 
 if [ ! -d "$WEB_DIR/node_modules" ]; then
-  info "Instalando dependencias do evoteste-web (npm install)..."
+  info "Instalando dependencias do evosync-web (npm install)..."
   (cd "$WEB_DIR" && npm install)
 else
-  info "Dependencias do evoteste-web ja instaladas"
+  info "Dependencias do evosync-web ja instaladas"
 fi
 
 if [ ! -f "$APP_ENV" ]; then
@@ -65,7 +65,7 @@ else
 fi
 
 # Reaproveita o mesmo .env do app Python (EVO_URL/EVO_APIKEY/EVO_INSTANCE).
-# O backend do evoteste-web lê o .env da raiz do projeto, então mantemos compatibilidade.
+# O backend do evosync-web lê o .env da raiz do projeto, então mantemos compatibilidade.
 if [ ! -f "$WEB_DIR/.env" ]; then
   cp "$APP_ENV" "$WEB_DIR/.env" 2>/dev/null || cp "$WEB_DIR/.env.example" "$WEB_DIR/.env"
   chmod 600 "$WEB_DIR/.env" 2>/dev/null || true
@@ -107,5 +107,5 @@ info "Build de producao (Next.js)"
 
 info "Instalacao concluida"
 printf '\nEvolution API: http://localhost:8080\n'
-printf 'EvoTeste web:  http://localhost:3000\n\n'
+printf 'EvoSync web:   http://localhost:3000\n\n'
 printf 'Para iniciar: bash installer/start_web_linux.sh\n\n'
