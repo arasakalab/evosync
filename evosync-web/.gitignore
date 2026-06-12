@@ -27,3 +27,6 @@ data/uploads/
 *.db
 *.db-shm
 *.db-wal
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo

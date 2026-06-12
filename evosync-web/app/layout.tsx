@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/layout/app-shell";
+import { Providers } from "@/components/providers";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -37,10 +38,12 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="dark">
       <body className={`${inter.variable} ${mono.variable} font-sans`}>
-        <TooltipProvider delayDuration={150}>
-          <AppShell>{children}</AppShell>
-          <Toaster richColors position="top-right" />
-        </TooltipProvider>
+        <Providers>
+          <TooltipProvider delayDuration={150}>
+            <AppShell>{children}</AppShell>
+            <Toaster richColors position="top-right" />
+          </TooltipProvider>
+        </Providers>
       </body>
     </html>
   );

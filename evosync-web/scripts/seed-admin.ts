@@ -7,17 +7,9 @@
  */
 import { getDb, schema } from "../lib/db";
 import { randomUUID } from "node:crypto";
-import { scryptSync, randomBytes } from "node:crypto";
+import { hashPassword } from "../lib/password";
 import { eq } from "drizzle-orm";
 import * as readline from "node:readline";
-
-const SCRYPT_KEYLEN = 64;
-
-function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString("hex");
-  const hash = scryptSync(password, salt, SCRYPT_KEYLEN).toString("hex");
-  return `scrypt:${salt}:${hash}`;
-}
 
 async function prompt(question: string, hidden = false): Promise<string> {
   if (hidden) {
@@ -113,13 +105,15 @@ async function main() {
   const id = randomUUID().replace(/-/g, "");
   const now = new Date().toISOString();
 
+  const passwordHash = await hashPassword(password);
+
   db.insert(schema.users)
     .values({
       id,
       // super_admin é global, sem tenant
       tenantId: null,
       email,
-      passwordHash: hashPassword(password),
+      passwordHash,
       name: "Super Admin",
       role: "super_admin",
       status: "active",

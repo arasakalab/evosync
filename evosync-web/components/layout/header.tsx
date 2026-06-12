@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { SendStateBadge } from "@/components/status-badge";
-import { CircleDot, History, Users } from "lucide-react";
+import { LogoutButton } from "@/components/admin/logout-button";
+import { CircleDot, History, Users, UserCircle2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 export function Header() {
+  const { data: session } = useSession();
   const connection = useAppStore((s) => s.connection);
   const status = useAppStore((s) => s.status);
   const contacts = useAppStore((s) => s.contacts);
@@ -65,6 +68,19 @@ export function Header() {
           </span>
         </div>
         <SendStateBadge state={status.state} />
+        {session?.user && (
+          <>
+            <div className="hidden md:flex items-center gap-2 rounded-md border border-border bg-panel/60 px-3 py-1.5 text-xs">
+              <UserCircle2 className="h-3.5 w-3.5 text-muted" />
+              <span className="text-muted">{session.user.email}</span>
+              <span className="text-muted/60">·</span>
+              <span className="font-semibold text-text capitalize">
+                {session.user.role.replace("_", " ")}
+              </span>
+            </div>
+            <LogoutButton />
+          </>
+        )}
       </div>
     </header>
   );
