@@ -3,7 +3,6 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AppShell } from "@/components/layout/app-shell";
 import { Providers } from "@/components/providers";
 
 const inter = Inter({
@@ -40,7 +39,7 @@ export default function RootLayout({
       <body className={`${inter.variable} ${mono.variable} font-sans`}>
         <Providers>
           <TooltipProvider delayDuration={150}>
-            <AppShell>{children}</AppShell>
+            {children}
             <Toaster richColors position="top-right" />
           </TooltipProvider>
         </Providers>

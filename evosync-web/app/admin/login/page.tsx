@@ -98,7 +98,7 @@ function LoginFormFallback() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg p-4">
+    <div className="h-screen w-full overflow-hidden flex items-center justify-center bg-bg p-4">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center gap-3 mb-8">
           <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/15 text-primary">
