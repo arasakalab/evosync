@@ -6,7 +6,7 @@
 import type { Contact, SendStatus } from "@/lib/types";
 import { hub } from "@/server/ws/hub";
 import { startRunner, type RunHandle } from "@/server/sender/runner";
-import { loadSchedules, saveSchedules } from "@/server/store/schedules";
+import { getSchedule, updateSchedule, listSchedules } from "@/server/store/schedules";
 
 interface StartArgs {
   url: string;
@@ -22,6 +22,11 @@ interface StartArgs {
   validateFirst: boolean;
   skipSentHistory: boolean;
   source?: "manual" | "schedule";
+  /**
+   * SaaS Phase 4: OBRIGATÓRIO. Indica de qual tenant são os contatos
+   * e onde salvar o sent_log. Sem isso o sender não deve ser chamado.
+   */
+  tenantId: string;
 }
 
 interface GlobalState {
@@ -131,23 +136,41 @@ export const sender = {
           s.activeScheduleId = null;
           if (activeId) {
             try {
-              const all = loadSchedules();
-              const sched = all.find((x) => x.id === activeId);
-              if (sched && sched.status === "running") {
-                const incomplete =
-                  status.failed > 0 ||
-                  status.pending > 0 ||
-                  status.limit_reached ||
-                  status.state === "stopped";
-                sched.status = incomplete ? "failed" : "sent";
-                sched.updated_at = new Date().toISOString();
-                sched.summary = `Enviados: ${status.sent}, Falharam: ${status.failed}, Pulados: ${status.skipped}, Pendentes: ${status.pending}`;
-                sched.error = incomplete ? status.error || "" : "";
-                saveSchedules(all);
-                hub.broadcast({
-                  type: "schedule_update",
-                  payload: { id: sched.id, status: sched.status, error: sched.error },
-                });
+              // Sem saber o tenantId, busca em todos os tenants ativos
+              // (geralmente só 1-2). O scheduler loop já cuida do cleanup
+              // primário, isto é fallback.
+              // Não usamos await aqui porque o callback onStatus é sync.
+              const { getDb, schema } = require("@/lib/db");
+              const { eq } = require("drizzle-orm");
+              const db = getDb();
+              const tenants = db
+                .select({ id: schema.tenants.id })
+                .from(schema.tenants)
+                .where(eq(schema.tenants.status, "active"))
+                .all();
+              for (const t of tenants) {
+                const sched = getSchedule(t.id, activeId);
+                if (sched && sched.status === "running") {
+                  const incomplete =
+                    status.failed > 0 ||
+                    status.pending > 0 ||
+                    status.limit_reached ||
+                    (status.state as string) === "stopped";
+                  updateSchedule(t.id, activeId, {
+                    status: incomplete ? "failed" : "sent",
+                    summary: `Enviados: ${status.sent}, Falharam: ${status.failed}, Pulados: ${status.skipped}, Pendentes: ${status.pending}`,
+                    error: incomplete ? status.error || "" : "",
+                  });
+                  hub.broadcast({
+                    type: "schedule_update",
+                    payload: {
+                      id: sched.id,
+                      status: incomplete ? "failed" : "sent",
+                      error: incomplete ? status.error || "" : "",
+                    },
+                  });
+                  break;
+                }
               }
             } catch (e) {
               // best-effort: log mas não bloqueia

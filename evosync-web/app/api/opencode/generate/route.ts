@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { OpenCodeMessageClient } from "@/server/opencode/client";
-import { loadSettings, saveSettings } from "@/server/store/settings";
+import { auth } from "@/lib/auth";
+import { loadTenantSettings, saveTenantSettings } from "@/server/store/settings";
 import fs from "node:fs";
 import path from "node:path";
 import { UPLOADS_DIR } from "@/server/paths";
@@ -26,8 +27,20 @@ export async function POST(req: NextRequest) {
   const buf = Buffer.from(await file.arrayBuffer());
   fs.writeFileSync(dest, buf);
 
-  const settings = loadSettings();
-  saveSettings(settings); // garante persistência do model
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  }
+  if (!session.user.tenantId) {
+    return NextResponse.json(
+      { error: "Super admin não pode usar OpenCode" },
+      { status: 403 }
+    );
+  }
+
+  const settings = loadTenantSettings(session.user.tenantId);
+  // Garante persistência do model
+  saveTenantSettings(session.user.tenantId, settings);
   const client = new OpenCodeMessageClient(settings.opencode_model);
   const { ok, result } = await client.generateFromFile(dest);
   // Mantém o arquivo para reuso (preview, OpenCode repetido)

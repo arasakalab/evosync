@@ -1,12 +1,22 @@
 /**
- * Loop de agendamento — a cada 30s verifica agendamentos pendentes
- * cuja data/hora já chegou e dispara o primeiro. Espelha o _schedule_loop
- * do main.py.
+ * Loop de agendamento — a cada 30s verifica agendamentos PENDENTES
+ * cuja data/hora já chegou em CADA TENANT ATIVO, e dispara o primeiro
+ * que encontrar. Espelha o _schedule_loop do main.py.
+ *
+ * SaaS Phase 4: itera sobre todos os tenants ativos (não mais sobre
+ * uma lista global).
  */
-import { loadSchedules, saveSchedules, nowIso } from "@/server/store/schedules";
+import { eq } from "drizzle-orm";
+import {
+  listSchedules,
+  getSchedule,
+  listDuePending,
+  updateSchedule,
+} from "@/server/store/schedules";
+import { listContacts } from "@/server/store/contacts";
+import { loadTenantSettings } from "@/server/store/settings";
+import { getDb, schema } from "@/lib/db";
 import { sender } from "@/server/sender/manager";
-import { loadSettings } from "@/server/store/settings";
-import { loadContacts } from "@/server/store/contacts";
 import { EvoClient } from "@/server/evo/client";
 import { hub } from "@/server/ws/hub";
 import type { Schedule } from "@/lib/types";
@@ -31,11 +41,23 @@ function getLoop(): GlobalLoop {
   return globalThis.__evoteste_loop!;
 }
 
+/**
+ * Lista todos os tenants ativos (pra iterar).
+ */
+function listActiveTenants(): { id: string; name: string }[] {
+  const db = getDb();
+  return db
+    .select({ id: schema.tenants.id, name: schema.tenants.name })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.status, "active"))
+    .all();
+}
+
 function failSchedule(s: Schedule, message: string) {
-  s.status = "failed";
-  s.updated_at = nowIso();
-  s.error = message;
-  saveSchedules(loadSchedules().map((x) => (x.id === s.id ? s : x)));
+  updateSchedule(s.tenantId || "", s.id, {
+    status: "failed",
+    error: message,
+  });
   hub.broadcast({
     type: "log",
     payload: {
@@ -46,46 +68,36 @@ function failSchedule(s: Schedule, message: string) {
   });
   hub.broadcast({
     type: "schedule_update",
-    payload: { id: s.id, status: s.status, error: message },
-  });
-}
-
-function markMissed(s: Schedule) {
-  s.status = "missed";
-  s.updated_at = nowIso();
-  s.error = "O app estava fechado no horário agendado.";
-  saveSchedules(loadSchedules().map((x) => (x.id === s.id ? s : x)));
-  hub.broadcast({
-    type: "schedule_update",
-    payload: { id: s.id, status: s.status, error: s.error },
+    payload: { id: s.id, status: "failed", error: message },
   });
 }
 
 function markRunning(s: Schedule) {
-  s.status = "running";
-  s.updated_at = nowIso();
-  s.error = "";
-  saveSchedules(loadSchedules().map((x) => (x.id === s.id ? s : x)));
+  updateSchedule(s.tenantId || "", s.id, { status: "running" });
   hub.broadcast({
     type: "schedule_update",
-    payload: { id: s.id, status: s.status },
+    payload: { id: s.id, status: "running" },
   });
 }
 
 function markFinished(s: Schedule, status: "sent" | "failed") {
-  s.status = status;
-  s.updated_at = nowIso();
-  saveSchedules(loadSchedules().map((x) => (x.id === s.id ? s : x)));
+  updateSchedule(s.tenantId || "", s.id, { status });
   hub.broadcast({
     type: "schedule_update",
-    payload: { id: s.id, status: s.status },
+    payload: { id: s.id, status },
   });
 }
 
 async function startScheduledSend(s: Schedule) {
-  const settings = loadSettings();
-  const currentContacts = loadContacts();
+  if (!s.tenantId) {
+    failSchedule(s, "Schedule sem tenantId (inválido).");
+    return;
+  }
 
+  const settings = loadTenantSettings(s.tenantId);
+
+  // Para contact_mode='current', pega os contatos ATUAIS do tenant
+  const currentContacts = listContacts(s.tenantId);
   const contacts =
     s.contact_mode === "current"
       ? currentContacts
@@ -110,14 +122,17 @@ async function startScheduledSend(s: Schedule) {
   }
 
   if (!settings.api_key || !settings.instance) {
-    failSchedule(s, "Credenciais da Evolution ausentes ou inválidas.");
+    failSchedule(
+      s,
+      "Credenciais da Evolution ausentes ou inválidas. Configure em /conexao."
+    );
     return;
   }
 
   const client = new EvoClient(settings.url, settings.api_key, settings.instance);
   const { ok, info } = await client.instanceExists();
   if (!ok) {
-    markRunning(s); // marca como running para UI e depois corrige
+    markRunning(s);
     if (info.startsWith("instancia_inexistente")) {
       failSchedule(
         s,
@@ -148,6 +163,7 @@ async function startScheduledSend(s: Schedule) {
   });
 
   const started = sender.start({
+    tenantId: s.tenantId,
     url: settings.url,
     apiKey: settings.api_key,
     instance: settings.instance,
@@ -170,45 +186,47 @@ async function startScheduledSend(s: Schedule) {
   }
 }
 
+/**
+ * Verifica todos os tenants e dispara o PRIMEIRO schedule due que encontrar.
+ * Se o sender está ocupado, pula essa iteração.
+ */
 function checkDue() {
   if (sender.isBusy()) return;
-  const all = loadSchedules();
-  const now = new Date();
-  const due = all
-    .filter((s) => s.status === "pending")
-    .map((s) => {
-      const d = new Date(s.scheduled_at);
-      return { s, d };
-    })
-    .filter((x) => !Number.isNaN(x.d.getTime()) && x.d <= now)
-    .sort((a, b) => a.d.getTime() - b.d.getTime());
-  if (!due.length) return;
-  void startScheduledSend(due[0].s);
+  const tenants = listActiveTenants();
+  for (const t of tenants) {
+    const due = listDuePending(t.id);
+    if (due.length > 0) {
+      // Pega o mais antigo (já vem ordenado de listDuePending)
+      void startScheduledSend(due[0]);
+      return; // um por vez (sender não suporta paralelo)
+    }
+  }
 }
 
 function markMissedOnStartup() {
   const loop = getLoop();
-  const all = loadSchedules();
-  let changed = false;
-  for (const s of all) {
-    if (s.status === "running") {
-      s.status = "failed";
-      s.updated_at = nowIso();
-      s.error = "O app foi fechado durante este agendamento.";
-      changed = true;
-      continue;
-    }
-    if (s.status !== "pending") continue;
-    const d = new Date(s.scheduled_at);
-    if (Number.isNaN(d.getTime())) continue;
-    if (d < loop.startedAt) {
-      s.status = "missed";
-      s.updated_at = nowIso();
-      s.error = "O app estava fechado no horário agendado.";
-      changed = true;
+  const tenants = listActiveTenants();
+  for (const t of tenants) {
+    const all = listSchedules(t.id);
+    for (const s of all) {
+      if (s.status === "running") {
+        updateSchedule(t.id, s.id, {
+          status: "failed",
+          error: "O app foi fechado durante este agendamento.",
+        });
+        continue;
+      }
+      if (s.status !== "pending") continue;
+      const d = new Date(s.scheduled_at);
+      if (Number.isNaN(d.getTime())) continue;
+      if (d < loop.startedAt) {
+        updateSchedule(t.id, s.id, {
+          status: "missed",
+          error: "O app estava fechado no horário agendado.",
+        });
+      }
     }
   }
-  if (changed) saveSchedules(all);
 }
 
 export function startSchedulerLoop() {
@@ -226,23 +244,31 @@ export function startSchedulerLoop() {
         const isDone =
           (st.state === "idle" || st.state === "stopped") && st.stage === "done";
         if (isDone) {
-          const all = loadSchedules();
-          const s = all.find((x) => x.id === activeId);
-          if (s && s.status === "running") {
-            const incomplete =
-              st.failed > 0 ||
-              st.pending > 0 ||
-              st.limit_reached ||
-              (st.state as string) === "stopped";
-            s.status = incomplete ? "failed" : "sent";
-            s.updated_at = nowIso();
-            s.summary = `Enviados: ${st.sent}, Falharam: ${st.failed}, Pulados: ${st.skipped}, Pendentes: ${st.pending}`;
-            s.error = incomplete ? st.error || "" : "";
-            saveSchedules(all);
-            hub.broadcast({
-              type: "schedule_update",
-              payload: { id: s.id, status: s.status, error: s.error },
-            });
+          // Sem saber o tenantId, busca em todos os tenants
+          const tenants = listActiveTenants();
+          for (const t of tenants) {
+            const sched = getSchedule(t.id, activeId);
+            if (sched && sched.status === "running") {
+              const incomplete =
+                st.failed > 0 ||
+                st.pending > 0 ||
+                st.limit_reached ||
+                (st.state as string) === "stopped";
+              updateSchedule(t.id, activeId, {
+                status: incomplete ? "failed" : "sent",
+                summary: `Enviados: ${st.sent}, Falharam: ${st.failed}, Pulados: ${st.skipped}, Pendentes: ${st.pending}`,
+                error: incomplete ? st.error || "" : "",
+              });
+              hub.broadcast({
+                type: "schedule_update",
+                payload: {
+                  id: activeId,
+                  status: incomplete ? "failed" : "sent",
+                  error: incomplete ? st.error || "" : "",
+                },
+              });
+              break;
+            }
           }
           sender.setActiveScheduleId(null);
         }

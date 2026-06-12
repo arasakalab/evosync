@@ -1,12 +1,24 @@
 /**
- * Persistência de configurações (.env + config.json).
- * Port direto de config.py: as credenciais (URL, API Key, instance)
- * ficam em .env; o resto vai em config.json.
+ * Persistência de settings POR TENANT (SaaS Phase 4).
+ *
+ * Antes (single-tenant): .env + config.json globais
+ * Agora (multi-tenant):
+ *   - Credenciais + defaults (delays, daily_limit, etc.) → tabela `tenants`
+ *   - Rascunho de mensagem (last_message) → tabela `tenant_settings` (k/v)
+ *   - api_key é criptografada com AES-256-GCM (tenants.evoApiKeyEncrypted)
+ *     e descriptografada na leitura
+ *
+ * Funções:
+ *   - loadTenantSettings(tenantId) → Settings
+ *   - saveTenantSettings(tenantId, s) → Settings (com encrypt da api_key)
+ *   - getLastMessage(tenantId) → string
+ *   - setLastMessage(tenantId, msg) → void
  */
-import fs from "node:fs";
-import path from "node:path";
-import { ENV_FILE, SETTINGS_FILE, DEFAULT_EVO_URL } from "@/server/paths";
+import { eq, and } from "drizzle-orm";
+import { getDb, schema } from "@/lib/db";
+import { encrypt, decrypt } from "@/lib/crypto";
 import type { Settings } from "@/lib/types";
+import { DEFAULT_EVO_URL } from "@/server/paths";
 
 const defaults: Settings = {
   url: DEFAULT_EVO_URL,
@@ -20,115 +32,156 @@ const defaults: Settings = {
   resend_sent: true,
 };
 
-function ensureFile(file: string) {
-  if (!fs.existsSync(file)) return;
-  try {
-    fs.chmodSync(file, 0o600);
-  } catch {
-    /* noop */
-  }
+/**
+ * Lê uma setting k/v do tenant_settings. Retorna null se não existir.
+ */
+function getTenantSetting(tenantId: string, key: string): string | null {
+  const db = getDb();
+  const row = db
+    .select()
+    .from(schema.tenantSettings)
+    .where(
+      and(
+        eq(schema.tenantSettings.tenantId, tenantId),
+        eq(schema.tenantSettings.key, key)
+      )
+    )
+    .all()[0];
+  return row?.value ?? null;
 }
 
-function readDotenv(): Record<string, string> {
-  if (!fs.existsSync(ENV_FILE)) return {};
-  const text = fs.readFileSync(ENV_FILE, "utf-8");
-  const out: Record<string, string> = {};
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq < 0) continue;
-    const key = line.slice(0, eq).trim();
-    let val = line.slice(eq + 1).trim();
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
-      val = val.slice(1, -1);
-    }
-    out[key] = val;
-  }
-  return out;
-}
-
-function writeDotenv(values: Record<string, string>) {
-  if (!fs.existsSync(ENV_FILE)) {
-    fs.writeFileSync(ENV_FILE, "", { mode: 0o600 });
+/**
+ * Salva uma setting k/v do tenant_settings (upsert).
+ */
+function setTenantSetting(tenantId: string, key: string, value: string): void {
+  const db = getDb();
+  const existing = getTenantSetting(tenantId, key);
+  if (existing === null) {
+    db.insert(schema.tenantSettings)
+      .values({ tenantId, key, value })
+      .run();
   } else {
-    ensureFile(ENV_FILE);
-  }
-
-  const existing = fs.existsSync(ENV_FILE)
-    ? fs.readFileSync(ENV_FILE, "utf-8")
-    : "";
-  const map: Record<string, string> = {};
-  for (const rawLine of existing.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq < 0) continue;
-    const key = line.slice(0, eq).trim();
-    map[key] = line.slice(eq + 1);
-  }
-  Object.assign(map, values);
-  const out = Object.entries(map)
-    .map(([k, v]) => `${k}=${v}`)
-    .join("\n");
-  fs.writeFileSync(ENV_FILE, out + "\n", { mode: 0o600 });
-  ensureFile(ENV_FILE);
-}
-
-function readConfigJson(): Record<string, any> {
-  if (!fs.existsSync(SETTINGS_FILE)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8"));
-  } catch {
-    return {};
+    db.update(schema.tenantSettings)
+      .set({ value })
+      .where(
+        and(
+          eq(schema.tenantSettings.tenantId, tenantId),
+          eq(schema.tenantSettings.key, key)
+        )
+      )
+      .run();
   }
 }
 
-function writeConfigJson(payload: Record<string, any>) {
-  fs.writeFileSync(
-    SETTINGS_FILE,
-    JSON.stringify(payload, null, 2),
-    "utf-8"
-  );
-}
+/**
+ * Carrega todas as settings do tenant a partir do DB.
+ * Decriptografa a API key automaticamente.
+ *
+ * @throws se o tenant não existir
+ */
+export function loadTenantSettings(tenantId: string): Settings {
+  if (!tenantId) {
+    throw new Error("tenantId é obrigatório pra loadTenantSettings");
+  }
+  const db = getDb();
+  const tenant = db
+    .select()
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, tenantId))
+    .all()[0];
 
-export function loadSettings(): Settings {
-  const env = readDotenv();
-  const json = readConfigJson();
+  if (!tenant) {
+    throw new Error(`Tenant ${tenantId} não encontrado`);
+  }
+
+  const lastMessage = getTenantSetting(tenantId, "last_message") ?? "";
+
+  let apiKey = "";
+  if (tenant.evoApiKeyEncrypted) {
+    try {
+      apiKey = decrypt(tenant.evoApiKeyEncrypted);
+    } catch (e: any) {
+      // ENCRYPTION_KEY mudou ou payload corrompido
+      console.error(
+        `[settings] Falha ao decriptografar API key do tenant ${tenantId}:`,
+        e?.message
+      );
+      apiKey = "";
+    }
+  }
+
   const s: Settings = {
-    url: env.EVO_URL || defaults.url,
-    api_key: env.EVO_APIKEY || "",
-    instance: env.EVO_INSTANCE || "",
-    opencode_model: json.opencode_model ?? defaults.opencode_model,
-    delay_min: Number(json.delay_min ?? defaults.delay_min) || 8,
-    delay_max: Number(json.delay_max ?? defaults.delay_max) || 25,
-    daily_limit: Number(json.daily_limit ?? defaults.daily_limit) || 200,
-    last_message: json.last_message ?? defaults.last_message,
-    resend_sent:
-      json.resend_sent === undefined
-        ? defaults.resend_sent
-        : !!json.resend_sent,
+    url: tenant.evoUrl || defaults.url,
+    api_key: apiKey,
+    instance: tenant.evoInstance || "",
+    opencode_model: tenant.opencodeModel || defaults.opencode_model,
+    delay_min: tenant.delayMin,
+    delay_max: tenant.delayMax,
+    daily_limit: tenant.dailyLimit,
+    last_message: lastMessage || defaults.last_message,
+    resend_sent: tenant.resendSent,
   };
   if (s.delay_min < 1) s.delay_min = 1;
   if (s.delay_max < s.delay_min) s.delay_max = s.delay_min;
   return s;
 }
 
-export function saveSettings(s: Settings): void {
-  writeDotenv({
-    EVO_URL: s.url,
-    EVO_APIKEY: s.api_key,
-    EVO_INSTANCE: s.instance,
-  });
-  const json = { ...readConfigJson() };
-  json.opencode_model = s.opencode_model;
-  json.delay_min = s.delay_min;
-  json.delay_max = s.delay_max;
-  json.daily_limit = s.daily_limit;
-  json.last_message = s.last_message;
-  json.resend_sent = s.resend_sent;
-  writeConfigJson(json);
+/**
+ * Salva settings do tenant. Criptografa a api_key se foi alterada.
+ *
+ * @returns Settings com a api_key descriptografada (a mesma coisa que foi passada)
+ */
+export function saveTenantSettings(tenantId: string, s: Settings): Settings {
+  if (!tenantId) {
+    throw new Error("tenantId é obrigatório pra saveTenantSettings");
+  }
+  const db = getDb();
+
+  // Criptografa a api_key se não estiver vazia
+  let apiKeyEncrypted: string | null = null;
+  if (s.api_key) {
+    try {
+      apiKeyEncrypted = encrypt(s.api_key);
+    } catch (e: any) {
+      throw new Error(
+        `Falha ao criptografar api_key (ENCRYPTION_KEY definida?): ${e?.message}`
+      );
+    }
+  }
+
+  const updates: Partial<typeof schema.tenants.$inferInsert> = {
+    evoUrl: s.url,
+    evoApiKeyEncrypted: apiKeyEncrypted,
+    evoInstance: s.instance,
+    opencodeModel: s.opencode_model,
+    delayMin: s.delay_min,
+    delayMax: s.delay_max,
+    dailyLimit: s.daily_limit,
+    resendSent: s.resend_sent,
+    updatedAt: new Date().toISOString(),
+  };
+
+  db.update(schema.tenants)
+    .set(updates)
+    .where(eq(schema.tenants.id, tenantId))
+    .run();
+
+  // last_message vai em tenant_settings (k/v)
+  if (s.last_message !== undefined) {
+    setTenantSetting(tenantId, "last_message", s.last_message);
+  }
+
+  // Retorna o estado atual descriptografado
+  return loadTenantSettings(tenantId);
+}
+
+/**
+ * Helpers para last_message (campo mais acessado do que settings completo)
+ */
+export function getLastMessage(tenantId: string): string {
+  return getTenantSetting(tenantId, "last_message") ?? "";
+}
+
+export function setLastMessage(tenantId: string, message: string): void {
+  setTenantSetting(tenantId, "last_message", message);
 }

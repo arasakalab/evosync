@@ -1,13 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EvoClient } from "@/server/evo/client";
-import { loadSettings } from "@/server/store/settings";
+import { auth } from "@/lib/auth";
+import { loadTenantSettings } from "@/server/store/settings";
 import { hub } from "@/server/ws/hub";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * POST /api/connection/test — testa a conexão Evolution do tenant logado.
+ * SaaS Phase 4: escopado por tenantId (cada tenant testa a sua própria).
+ */
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as Record<string, string>;
-  const current = loadSettings();
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  }
+  if (!session.user.tenantId) {
+    return NextResponse.json(
+      { error: "Super admin não tem conexão de tenant" },
+      { status: 403 }
+    );
+  }
+
+  let body: Record<string, string> = {};
+  try {
+    body = await req.json();
+  } catch {
+    /* body vazio OK */
+  }
+
+  const current = loadTenantSettings(session.user.tenantId);
   const url = body.url || current.url;
   const apiKey = body.api_key || current.api_key;
   const instance = body.instance || current.instance;

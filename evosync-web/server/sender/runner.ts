@@ -14,10 +14,17 @@
  */
 
 import { EvoClient, normalizeNumberLocal } from "@/server/evo/client";
-import { loadSentLog, saveSentLog } from "@/server/store/sent-log";
+import { loadSentLog, markSent } from "@/server/store/sent-log";
 import type { Contact, SendStatus } from "@/lib/types";
 
 export interface StartArgs {
+  /**
+   * SaaS Phase 4: tenantId é OBRIGATÓRIO. O sender usa pra:
+   *  - Carregar sent_log do tenant
+   *  - Persistir cada envio no sent_log do tenant
+   *  - Validação adicional (futuro: rate limit por tenant)
+   */
+  tenantId: string;
   url: string;
   apiKey: string;
   instance: string;
@@ -139,7 +146,7 @@ export function startRunner(
 
   handle.promise = (async () => {
     const client = new EvoClient(args.url, args.apiKey, args.instance);
-    const sentLog = new Set<string>(loadSentLog());
+    const sentLog = new Set<string>(loadSentLog(args.tenantId));
     const status = defaultStatus(args.contacts.length);
     let sentInSession = 0;
 
@@ -315,7 +322,8 @@ export function startRunner(
         if (sendResult.ok) {
           status.sent += 1;
           sentLog.add(number);
-          saveSentLog(sentLog);
+          // Persiste incrementalmente (1 INSERT) em vez de regravar tudo
+          markSent(args.tenantId, number);
           sentInSession += 1;
           status.error = "";
           status.pending = Math.max(0, status.pending - 1);

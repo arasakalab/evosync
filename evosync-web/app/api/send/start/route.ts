@@ -1,14 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadContacts } from "@/server/store/contacts";
-import { loadSettings } from "@/server/store/settings";
+import { auth } from "@/lib/auth";
+import { listContacts } from "@/server/store/contacts";
+import { loadTenantSettings } from "@/server/store/settings";
 import { sender } from "@/server/sender/manager";
 import fs from "node:fs";
 import { hub } from "@/server/ws/hub";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * POST /api/send/start — inicia disparo manual.
+ * SaaS Phase 4: escopado por tenantId da sessão.
+ */
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  }
+  if (!session.user.tenantId) {
+    return NextResponse.json(
+      { error: "Super admin não pode iniciar disparos manuais" },
+      { status: 403 }
+    );
+  }
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body inválido" }, { status: 400 });
+  }
+
   const template = String(body.template || "").trim();
   const mediaPath = String(body.mediaPath || "").trim() || null;
   const mediatype = String(body.mediatype || "image");
@@ -18,7 +40,7 @@ export async function POST(req: NextRequest) {
   const validateFirst = !!body.validateFirst;
   const skipSentHistory = body.skipSentHistory !== false;
 
-  const contacts = loadContacts();
+  const contacts = listContacts(session.user.tenantId);
   if (!contacts.length) {
     return NextResponse.json(
       { ok: false, error: "Sem contatos. Importe ou adicione antes de iniciar." },
@@ -44,7 +66,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const settings = loadSettings();
+  const settings = loadTenantSettings(session.user.tenantId);
   if (!settings.api_key || !settings.instance) {
     return NextResponse.json(
       {
@@ -57,6 +79,7 @@ export async function POST(req: NextRequest) {
 
   sender.setActiveScheduleId(null);
   const ok = sender.start({
+    tenantId: session.user.tenantId,
     url: settings.url,
     apiKey: settings.api_key,
     instance: settings.instance,

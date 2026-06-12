@@ -46,6 +46,7 @@ export type ContactMode = "snapshot" | "current";
 
 export interface Schedule {
   id: string;
+  tenantId?: string; // SaaS Phase 4 — populated when loaded from DB
   created_at: string;
   updated_at: string;
   scheduled_at: string;

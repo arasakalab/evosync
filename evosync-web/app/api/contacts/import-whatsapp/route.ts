@@ -1,13 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadSettings } from "@/server/store/settings";
+import { auth } from "@/lib/auth";
+import { loadTenantSettings } from "@/server/store/settings";
 import { EvoClient } from "@/server/evo/client";
-import { loadContacts, saveContacts } from "@/server/store/contacts";
+import { addContactsBulk, listContacts } from "@/server/store/contacts";
 import type { Contact } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
-  const s = loadSettings();
+/**
+ * POST /api/contacts/import-whatsapp — importa contatos da Evolution API
+ * do tenant logado. SaaS Phase 4: escopado por tenantId.
+ */
+export async function POST(_req: NextRequest) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  }
+  if (!session.user.tenantId) {
+    return NextResponse.json(
+      { error: "Super admin não pode importar contatos" },
+      { status: 403 }
+    );
+  }
+  const tenantId = session.user.tenantId;
+
+  const s = loadTenantSettings(tenantId);
   if (!s.api_key || !s.instance) {
     return NextResponse.json(
       { error: "Preencha API Key e Nome da Instância na aba Conexão." },
@@ -47,20 +64,12 @@ export async function POST() {
       { status: 404 }
     );
   }
-  const current = loadContacts();
-  const existing = new Set(current.map((c) => c.number));
-  let added = 0;
-  for (const c of valid) {
-    if (!existing.has(c.number)) {
-      current.push(c);
-      existing.add(c.number);
-      added += 1;
-    }
-  }
-  saveContacts(current);
+
+  // addContactsBulk já faz upsert com dedup contra existentes
+  const result = addContactsBulk(tenantId, valid);
   return NextResponse.json({
-    added,
+    added: result.added,
     found: valid.length,
-    existed: valid.length - added,
+    existed: result.existing,
   });
 }

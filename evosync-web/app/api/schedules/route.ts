@@ -1,19 +1,60 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadSchedules, saveSchedules, newScheduleId, nowIso } from "@/server/store/schedules";
-import { loadContacts } from "@/server/store/contacts";
-import { loadSettings } from "@/server/store/settings";
+import { auth } from "@/lib/auth";
+import { nowIso } from "@/server/store/schedules";
+import {
+  listSchedules,
+  createSchedule,
+  removeSchedules,
+} from "@/server/store/schedules";
+import { listContacts } from "@/server/store/contacts";
+import { loadTenantSettings } from "@/server/store/settings";
 import type { Schedule } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  return NextResponse.json(loadSchedules());
+/** Helper: extrai tenantId da sessão */
+async function requireTenantId() {
+  const session = await auth();
+  if (!session?.user) {
+    return {
+      error: NextResponse.json({ error: "Não autenticado" }, { status: 401 }),
+      tenantId: null,
+    };
+  }
+  if (!session.user.tenantId) {
+    return {
+      error: NextResponse.json(
+        { error: "Super admin não tem schedules" },
+        { status: 403 }
+      ),
+      tenantId: null,
+    };
+  }
+  return { error: null, tenantId: session.user.tenantId };
 }
 
+/**
+ * GET /api/schedules — lista schedules do tenant.
+ */
+export async function GET() {
+  const { error, tenantId } = await requireTenantId();
+  if (error) return error;
+  return NextResponse.json(listSchedules(tenantId!));
+}
+
+/**
+ * POST /api/schedules — cria novo schedule.
+ */
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const settings = loadSettings();
-  const all = loadSchedules();
+  const { error, tenantId } = await requireTenantId();
+  if (error) return error;
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body inválido" }, { status: 400 });
+  }
 
   const scheduledAt = String(body.scheduled_at || "");
   const date = new Date(scheduledAt);
@@ -47,11 +88,15 @@ export async function POST(req: NextRequest) {
 
   const contactMode: "current" | "snapshot" =
     body.contact_mode === "current" ? "current" : "snapshot";
+
   let contacts: Schedule["contacts"] = [];
   if (contactMode === "snapshot") {
-    const current = loadContacts();
+    const current = listContacts(tenantId!);
     if (current.length) {
-      contacts = current.map((c) => ({ number: c.number, fields: { ...c.fields } }));
+      contacts = current.map((c) => ({
+        number: c.number,
+        fields: { ...c.fields },
+      }));
     } else {
       return NextResponse.json(
         { error: "Carregue contatos antes de criar um agendamento congelado." },
@@ -60,38 +105,56 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const schedule: Schedule = {
-    id: newScheduleId(),
-    created_at: nowIso(),
-    updated_at: nowIso(),
-    // Mantém o "Z" (UTC) — nunca usar .slice(0,19) aqui.
-    scheduled_at: date.toISOString(),
-    status: "pending",
-    message,
-    media_path: mediaPath,
-    media_type: String(body.media_type || "image"),
-    delay_min: Number(body.delay_min ?? settings.delay_min) || 8,
-    delay_max: Number(body.delay_max ?? settings.delay_max) || 25,
-    daily_limit: Number(body.daily_limit ?? settings.daily_limit) || 200,
-    validate_first: body.validate_first !== false,
-    skip_sent_history: !!body.skip_sent_history,
-    contact_mode: contactMode,
-    contacts,
-    error: "",
-    summary: "",
-  };
-  all.push(schedule);
-  saveSchedules(all);
-  return NextResponse.json(schedule);
+  // Defaults vêm das settings do tenant
+  const settings = loadTenantSettings(tenantId!);
+
+  try {
+    const schedule = createSchedule(tenantId!, {
+      scheduled_at: date.toISOString(),
+      message,
+      media_path: mediaPath,
+      media_type: String(body.media_type || "image"),
+      delay_min: Number(body.delay_min ?? settings.delay_min) || 8,
+      delay_max: Number(body.delay_max ?? settings.delay_max) || 25,
+      daily_limit: Number(body.daily_limit ?? settings.daily_limit) || 200,
+      validate_first: body.validate_first !== false,
+      skip_sent_history: !!body.skip_sent_history,
+      contact_mode: contactMode,
+      contacts,
+      error: "",
+      summary: "",
+      status: "pending",
+    });
+    return NextResponse.json(schedule);
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: "Falha ao criar schedule", details: e?.message },
+      { status: 500 }
+    );
+  }
 }
 
+/**
+ * DELETE /api/schedules — remove schedules pelos ids.
+ */
 export async function DELETE(req: NextRequest) {
-  const body = await req.json();
+  const { error, tenantId } = await requireTenantId();
+  if (error) return error;
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body inválido" }, { status: 400 });
+  }
+
   const ids: string[] = Array.isArray(body.ids) ? body.ids : [];
-  if (!ids.length)
-    return NextResponse.json({ error: "ids[] é obrigatório" }, { status: 400 });
-  const all = loadSchedules();
-  const next = all.filter((s) => !ids.includes(s.id));
-  saveSchedules(next);
-  return NextResponse.json({ removed: all.length - next.length });
+  if (!ids.length) {
+    return NextResponse.json(
+      { error: "ids[] é obrigatório" },
+      { status: 400 }
+    );
+  }
+  const removed = removeSchedules(tenantId!, ids);
+  return NextResponse.json({ removed });
 }
