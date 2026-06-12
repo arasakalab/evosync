@@ -22,3 +22,8 @@ npm-debug.log*
 # Persistência do app (espelha o que já existe no app Python)
 # Mantemos estes versionados por padrão (são apenas defaults), mas uploads sim não.
 data/uploads/
+
+# Banco SQLite (SaaS Phase 1+)
+*.db
+*.db-shm
+*.db-wal

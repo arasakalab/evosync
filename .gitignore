@@ -27,3 +27,8 @@ evosync-web/.env
 # Uploads locais do evosync-web (jamais versionar)
 evosync-web/uploads/*
 !evosync-web/uploads/.gitkeep
+
+# Banco SQLite do SaaS (jamais versionar)
+evosync-web/*.db
+evosync-web/*.db-shm
+evosync-web/*.db-wal
