@@ -286,3 +286,8 @@ export function stopSchedulerLoop() {
     loop.interval = null;
   }
 }
+
+export function isSchedulerLoopRunning(): boolean {
+  const loop = getLoop();
+  return loop.interval !== null;
+}
