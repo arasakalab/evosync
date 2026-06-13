@@ -11,10 +11,7 @@
  * Auth + License (Fase 2 + 3 do SaaS):
  *  - Sem sessão → /admin/login?callbackUrl=
  *  - Com sessão, mas tenantId (e license vencida) → /license-expired
- *  - super_admin (tenantId null) sempre passa (é a plataforma, não cliente)
- *
- * Próximas fases:
- *  - Fase 4: escopar dados por tenantId da sessão
+ *  - super_admin (tenantId null) → /admin (este layout é só pra operators)
  */
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -32,12 +29,15 @@ export default async function AppRouteLayout({
     redirect("/admin/login?callbackUrl=/");
   }
 
-  // super_admin (sem tenant) sempre tem acesso à plataforma
-  if (session.user.tenantId) {
-    const valid = await isLicenseValid(session.user.tenantId);
-    if (!valid) {
-      redirect("/license-expired");
-    }
+  // super_admin (sem tenant) NÃO deve usar o app do operator — redireciona pro admin
+  if (!session.user.tenantId) {
+    redirect("/admin");
+  }
+
+  // License check
+  const valid = await isLicenseValid(session.user.tenantId);
+  if (!valid) {
+    redirect("/license-expired");
   }
 
   return <AppShell>{children}</AppShell>;
