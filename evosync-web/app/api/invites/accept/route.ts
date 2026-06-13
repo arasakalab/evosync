@@ -8,6 +8,7 @@ import {
 } from "@/server/store/invites";
 import { hashPassword } from "@/lib/password";
 import { logAudit } from "@/server/store/audit";
+import { getRequestIp, rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,20 @@ export const dynamic = "force-dynamic";
  * retorna ok. O front redireciona pra /admin/login pra o user logar.
  */
 export async function POST(req: NextRequest) {
+  // Rate limit por IP: 10 tentativas/hora
+  const ip = getRequestIp(req);
+  const rl = rateLimit({
+    key: `invite-accept:${ip}`,
+    limit: 10,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Muitas tentativas. Tente novamente em " + rl.retryAfterSec + "s." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } }
+    );
+  }
+
   let body: any;
   try {
     body = await req.json();

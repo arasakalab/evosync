@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getInviteByToken, isInviteValid } from "@/server/store/invites";
+import { getRequestIp, rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +12,23 @@ export const dynamic = "force-dynamic";
  * Público — token é o "segredo". Retorna 410 se inválido.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { token: string } }
 ) {
+  // Rate limit por IP: 30 visualizações/hora (permite previews)
+  const ip = getRequestIp(req);
+  const rl = rateLimit({
+    key: `invite-view:${ip}`,
+    limit: 30,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Muitas requisições" },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } }
+    );
+  }
+
   const inv = getInviteByToken(params.token);
   if (!inv) {
     return NextResponse.json({ error: "Convite não encontrado" }, { status: 404 });

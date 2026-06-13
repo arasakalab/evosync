@@ -13,6 +13,7 @@ import { getDb, schema } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 import { authConfig } from "@/lib/auth.config";
 import { logAudit } from "@/server/store/audit";
+import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
 
 declare module "next-auth" {
   interface Session {
@@ -51,6 +52,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const email = String(creds.email).toLowerCase().trim();
         const password = String(creds.password);
 
+        // Rate limit por email: 5 tentativas a cada 15 min.
+        // Bloqueia brute-force em conta específica.
+        const rl = rateLimit({
+          key: `login:${email}`,
+          limit: 5,
+          windowMs: 15 * 60 * 1000,
+        });
+        if (!rl.ok) {
+          logAudit({
+            action: "auth.login.rate_limited",
+            details: { email, retryAfterSec: rl.retryAfterSec },
+          });
+          // Lança erro com mensagem; NextAuth exibe na UI via redirect ?error=
+          throw new Error("Muitas tentativas. Tente novamente em " + rl.retryAfterSec + "s.");
+        }
+
         const db = getDb();
         const found = db
           .select()
@@ -86,6 +103,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           });
           return null;
         }
+
+        // Login OK: reseta o rate limit pra esse email
+        resetRateLimit(`login:${email}`);
 
         // Atualiza last_login_at (best-effort)
         try {

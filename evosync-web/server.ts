@@ -14,6 +14,7 @@ import fs from "node:fs";
 import { hub } from "@/server/ws/hub";
 import { startSchedulerLoop, stopSchedulerLoop } from "@/server/scheduler/loop";
 import { sender } from "@/server/sender/manager";
+import { logger } from "@/lib/logger";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = parseInt(process.env.PORT || "3000", 10);
@@ -37,14 +38,14 @@ function runMigrations() {
   const db = drizzle(sqlite);
   try {
     migrate(db, { migrationsFolder: path.join(process.cwd(), "lib/db/migrations") });
-    // eslint-disable-next-line no-console
-    console.log(`[server] ✓ DB migrations aplicadas (${dbPath})`);
+    logger.info({ dbPath }, "DB migrations aplicadas");
   } finally {
     sqlite.close();
   }
 }
 
 async function main() {
+  logger.info({ env: process.env.NODE_ENV, port }, "Iniciando EvoSync");
   // 1. Roda migrations ANTES de subir o servidor
   runMigrations();
 
@@ -73,26 +74,40 @@ async function main() {
   startSchedulerLoop();
 
   server.listen(port, () => {
-    // eslint-disable-next-line no-console
-    console.log(
-      `\n  EvoSync web rodando em:\n  → http://localhost:${port}\n  → WebSocket: ws://localhost:${port}/ws\n`
+    logger.info(
+      { url: `http://localhost:${port}`, ws: `ws://localhost:${port}/ws` },
+      "EvoSync web rodando"
     );
   });
 
-  const shutdown = async () => {
-    // eslint-disable-next-line no-console
-    console.log("Encerrando EvoSync web...");
-    stopSchedulerLoop();
-    await sender.dispose();
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 2000).unref();
+  let shuttingDown = false;
+  const shutdown = async (sig: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info({ signal: sig }, "Iniciando graceful shutdown");
+    try {
+      stopSchedulerLoop();
+      await sender.dispose();
+      // Fecha WebSocket
+      wss.clients.forEach((c) => c.terminate());
+      wss.close();
+      // Fecha HTTP server
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      logger.info("Shutdown concluído");
+      process.exit(0);
+    } catch (e: any) {
+      logger.error({ err: e }, "Erro durante shutdown");
+      process.exit(1);
+    } finally {
+      // Hard timeout
+      setTimeout(() => process.exit(1), 10_000).unref();
+    }
   };
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
 
 main().catch((e) => {
-  // eslint-disable-next-line no-console
-  console.error("Falha ao iniciar servidor:", e);
+  logger.fatal({ err: e }, "Falha ao iniciar servidor");
   process.exit(1);
 });

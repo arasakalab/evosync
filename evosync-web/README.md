@@ -1,154 +1,172 @@
-# EvoSync Web — Disparador em massa (Next.js 14)
+# EvoSync
 
-Esta é a **versão web** do EvoSync, com a mesma lógica de negócio do app Python legado (`../main.py`) reescrita em TypeScript e empacotada numa UI Next.js 14 com shadcn/ui.
+> Disparador em massa via Evolution API — versão web multi-tenant (SaaS)
 
-A **funcionalidade é idêntica**: 5 abas (Conexão, Contatos, Mensagem, Disparo, Agenda), mesmo comportamento de delays, validação prévia, persistência, agendamento, OpenCode IA, e anti-ban.
+App para envio de mensagens em massa pelo WhatsApp, usando a [Evolution API](https://github.com/EvolutionAPI/evolution-api)
+como gateway. Cada cliente traz sua própria Evolution API (BYO), garantindo
+isolamento total de credenciais.
 
-A **persistência** continua em arquivos (`config.json`, `persisted_contacts.json`, `scheduled_messages.json`, `sent_log.json`), então a configuração é compatível com a versão desktop.
+## Status
 
-## Stack
+**Versão 1.0.0** — SaaS production-ready.
 
-- **Next.js 14** (App Router) + TypeScript
-- **shadcn/ui + Tailwind CSS** (paleta dark/verde idêntica à versão desktop)
-- **WebSocket** nativo (`ws`) em `/ws` para atualizações em tempo real do envio
-- **runner assíncrono no mesmo processo** (substitui worker_threads para evitar problemas com tsx loader)
-- **fetch** nativo para a Evolution API (substituindo `requests`)
-
-## Requisitos
-
-- Node.js 18+ (recomendado 20+)
-- A Evolution API rodando (use o instalador do projeto, ou um servidor próprio)
-- (Opcional) `opencode` no PATH para a aba Mensagem → OpenCode IA
-
-## Instalação automatizada (recomendada)
-
-Linux:
-
-```bash
-cd /caminho/para/EvoSync-mod2
-bash installer/install_web_linux.sh
-bash installer/start_web_linux.sh
-```
-
-Windows (PowerShell):
-
-```powershell
-cd caminho\para\EvoSync-mod2
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\installer\install_web_windows.ps1
-installer\start_web_windows.bat
-```
-
-O instalador:
-
-1. Sobe a stack Docker (Evolution + Postgres + Redis)
-2. Cria `.env` com `EVO_URL`, `EVO_APIKEY`, `EVO_INSTANCE` (mesmo arquivo do app Python)
-3. Instala dependências npm
-4. Gera o build de produção
-5. Imprime a URL `http://localhost:3000`
-
-## Instalação manual
-
-```bash
-cd evosync-web
-npm install
-cp .env.example .env   # preencha EVO_URL / EVO_APIKEY / EVO_INSTANCE
-npm run build
-NODE_ENV=production npm run start
-```
-
-Em desenvolvimento:
-
-```bash
-cd evosync-web
-npm install
-npm run dev
-```
-
-Acesse `http://localhost:3000`. O servidor expõe:
-
-- `GET /` → redireciona para `/conexao`
-- `GET /api/*` → API REST
-- `WS /ws` → atualizações em tempo real
-
-## Endpoints REST principais
-
-| Método | Rota | Descrição |
+| Fase | Status | Commit |
 |---|---|---|
-| `GET/PUT` | `/api/settings` | Carrega/salva `config.json` + `.env` |
-| `POST` | `/api/connection/test` | Testa ping + connectionState |
-| `GET/POST/DELETE` | `/api/contacts` | Lista/adiciona/remove contatos |
-| `POST` | `/api/contacts/import-csv` | Importa CSV parseado |
-| `POST` | `/api/contacts/import-whatsapp` | Importa via `/chat/findContacts` |
-| `POST` | `/api/contacts/clear` | Limpa todos |
-| `POST` | `/api/message/preview` | Renderiza template para o 1º contato |
-| `GET` | `/api/send/status` | Status atual do worker |
-| `POST` | `/api/send/start` | Inicia disparo |
-| `POST` | `/api/send/pause` / `resume` / `stop` | Controles |
-| `POST` | `/api/send/reset-history` | Apaga `sent_log.json` |
-| `GET/POST/DELETE` | `/api/schedules` | CRUD de agendamentos |
-| `PUT/DELETE` | `/api/schedules/:id` | Atualiza/exclui um agendamento |
-| `POST` | `/api/schedules/all` | Exclui todos (DELETE) |
-| `POST` | `/api/opencode/generate` | Upload multipart, retorna texto |
-| `POST` | `/api/upload/media` | Upload de mídia |
+| 1. DB (SQLite + Drizzle + AES-256-GCM) | ✅ | `75073e7` |
+| 2. Auth (NextAuth v5) | ✅ | `30f946a` |
+| 3. License model | ✅ | `398ac16` |
+| 4. Multi-tenant data isolation | ✅ | `487c02f` |
+| 5. Invite flow | ✅ | `80d9de7` |
+| 6. Admin panel | ✅ | `80d9de7` |
+| 7. Audit log estruturado | ✅ | (ver `git log`) |
+| 8. VPS deploy + health | ✅ | (ver `git log`) |
+| 9. Hardening + docs | ✅ | (ver `git log`) |
 
-## WebSocket (`ws://localhost:3000/ws`)
+## Quickstart (local)
 
-Eventos `server → client`:
+```bash
+# 1. Instalar dependências
+cd evosync-web
+npm install
 
-```ts
-{ type: "status", payload: SendStatus }
-{ type: "log",    payload: { ts, line, level } }
-{ type: "progress", payload: { percent, current, total } }
-{ type: "done",   payload: { summary, counts } }
-{ type: "conn",   payload: { ok, state, msg } }
-{ type: "schedule_update", payload: { id, status, error } }
-{ type: "hello",  payload: { ts } }
+# 2. Configurar .env (ou copiar .env.example e editar)
+cp .env.example .env
+# Edite .env: ENCRYPTION_KEY, AUTH_SECRET (gere com openssl rand)
+
+# 3. Build + start
+bash dev.sh start
+
+# 4. Criar super_admin (seed)
+npx tsx scripts/seed-admin.ts
+
+# 5. Acessar
+# http://localhost:3000/admin/login
+# super_admin: desenvolvimento@arasakalab.com.br / senha-admin-123
 ```
 
-## Estrutura de pastas
+## Quickstart (produção em VPS)
+
+```bash
+# No VPS Ubuntu 24.04 limpo
+curl -fsSL https://raw.githubusercontent.com/arasakalab/evosync/main/installer/install_vps.sh | \
+  DOMAIN=app.evosync.com.br bash
+```
+
+Ver [`docs/DEPLOY_VPS.md`](./docs/DEPLOY_VPS.md) para detalhes.
+
+## Comandos úteis
+
+```bash
+# Dev mode (hot reload)
+bash dev.sh dev
+
+# Produção (usa .next/ build)
+bash dev.sh start
+
+# Status + últimas linhas do log
+bash dev.sh status
+
+# Tail do log
+bash dev.sh logs
+
+# Parar
+bash dev.sh stop
+
+# Reiniciar
+bash dev.sh restart
+
+# Typecheck
+npm run typecheck
+
+# Lint
+npm run lint
+
+# Build manual
+npx next build
+```
+
+## Variáveis de ambiente
+
+| Var | Obrigatória | Descrição |
+|---|---|---|
+| `DATABASE_URL` | não | Caminho SQLite. Default: `./data/evosync.db` |
+| `PORT` | não | Porta HTTP. Default: 3000 |
+| `NODE_ENV` | sim (prod) | `production` em prod |
+| `LOG_LEVEL` | não | `debug`/`info`/`warn`/`error`. Default: `info` |
+| `ENCRYPTION_KEY` | **sim** | 64 hex chars (32 bytes) — gerado no install |
+| `AUTH_SECRET` | **sim** | 32+ bytes base64 — gerado no install |
+| `EVO_URL` | opcional* | URL da Evolution API (default por tenant) |
+| `EVO_APIKEY` | opcional* | API key (default por tenant) |
+| `EVO_INSTANCE` | opcional* | Nome da instância (default por tenant) |
+
+* `EVO_*` são configuráveis por tenant na UI (aba Conexão). Use `.env` só
+como default global.
+
+## Estrutura
 
 ```
 evosync-web/
-├── server.ts                  # Next + WS + scheduler
-├── package.json
-├── tailwind.config.ts
-├── next.config.mjs
-├── server/                    # lógica port do Python
-│   ├── paths.ts
-│   ├── evo/client.ts          # EvoClient (fetch)
-│   ├── sender/                # runner assíncrono
-│   ├── opencode/client.ts     # spawn do CLI opencode
-│   ├── store/                 # settings, contacts, schedules, sent-log
-│   ├── scheduler/loop.ts      # 30s check
-│   └── ws/hub.ts              # broadcast
-├── app/                       # páginas + API routes
-│   ├── layout.tsx
-│   ├── globals.css
-│   ├── conexao/page.tsx
-│   ├── contatos/page.tsx
-│   ├── mensagem/page.tsx
-│   ├── disparo/page.tsx
-│   ├── agenda/page.tsx
-│   └── api/
-├── components/                # shadcn/ui + layout + features
-│   ├── layout/{app-shell,sidebar,header,status-bar}.tsx
-│   ├── ui/                    # primitives (button, dialog, etc)
-│   └── status-badge.tsx
-├── hooks/use-websocket.ts
-├── lib/{api,store,phone,types,utils}.ts
-└── data/                      # .env, config.json, persisted_contacts.json, ...
+├─ app/                        # Next.js App Router
+│  ├─ (app)/                   # Rotas autenticadas (com AppShell)
+│  ├─ admin/                   # Admin panel
+│  │  ├─ login/                # Login
+│  │  └─ (panel)/              # Sidebar admin (super_admin only)
+│  ├─ invite/[token]/          # Aceite de convite (público)
+│  ├─ license-expired/         # Bloqueio
+│  ├─ api/                     # API routes
+│  │  ├─ admin/                # /api/admin/* (super_admin)
+│  │  ├─ auth/                 # NextAuth
+│  │  ├─ contacts/             # CRUD contatos
+│  │  ├─ schedules/            # CRUD agendamentos
+│  │  ├─ settings/             # Config tenant
+│  │  ├─ send/                 # Iniciar envio
+│  │  ├─ invites/              # Accept invite
+│  │  ├─ opencode/             # Geração de msg
+│  │  ├─ connection/           # Test Evolution
+│  │  └─ health/               # Liveness check
+│  ├─ error.tsx                # Erro em rota
+│  ├─ not-found.tsx            # 404
+│  └─ global-error.tsx         # Erro fatal
+├─ components/
+│  ├─ ui/                      # shadcn/ui
+│  ├─ layout/                  # AppShell, Header, Sidebar
+│  └─ admin/                   # AdminShell
+├─ lib/                        # Helpers (db, auth, crypto, etc)
+├─ server/                     # Backend custom (sender, scheduler, ws)
+│  ├─ sender/                  # Loop de envio
+│  ├─ scheduler/               # Polling de agendamentos
+│  ├─ ws/                      # Hub WebSocket
+│  ├─ evo/                     # Cliente Evolution API
+│  └─ store/                   # CRUD por domínio
+├─ scripts/                    # seed-admin, migrate, seed-tenant2
+├─ data/                       # SQLite DB (gitignored)
+├─ logs/                       # server.log, server.pid
+├─ docs/                       # DEPLOY_VPS, SECURITY, CHANGELOG, ARCHITECTURE
+├─ installer (raiz)            # install_vps.sh, uninstall_vps.sh
+├─ server.ts                   # Custom server entry
+└─ dev.sh                      # Lifecycle manager
 ```
 
-## Compatibilidade com a versão desktop
+## Documentação
 
-Os arquivos de persistência ficam em `data/` (`config.json`, `persisted_contacts.json`, `scheduled_messages.json`, `sent_log.json`) e `.env`. Os formatos são os mesmos do app Python — você pode inclusive copiar os arquivos entre as duas versões.
+- [`docs/DEPLOY_VPS.md`](./docs/DEPLOY_VPS.md) — Deploy em produção
+- [`docs/SECURITY.md`](./docs/SECURITY.md) — Modelo de ameaças
+- [`docs/CHANGELOG.md`](./docs/CHANGELOG.md) — Histórico de versões
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — Componentes e fluxos
 
-> A versão web lê o `.env` do diretório raiz do projeto (mesmo do app Python), então as credenciais configuradas em `Conexão → Salvar` aparecem no arquivo `.env` com permissão 600.
+## Compatibilidade com versão Python (legada)
 
-## Próximos passos
+O app Python desktop (`main.py` na raiz do repo) continua funcional
+independente. Não renomeamos:
 
-- Suporte a PWA (instalar como app)
-- Dark/light theme switch
-- Multi-instância (várias Evolution simultâneas)
-- Versão SaaS multi-tenant
+- `main.py` (mantém nome "EvoTeste")
+- `evo_client.py`, `client.py`
+- JSON files (`config.json`, `sent_log.json`, `persisted_contacts.json`, etc)
+- Variáveis internas Python (`__evoteste_sender`, `__evoteste_loop`, `__evoteste_hub`)
+
+Decisão: a web app é uma **evolução** da Python, não uma substituição.
+Compartilham dados via SQLite no futuro (migração opcional).
+
+## Licença
+
+Proprietary. © 2026 ArasakaLab.

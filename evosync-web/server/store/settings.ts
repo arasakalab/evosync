@@ -19,6 +19,7 @@ import { getDb, schema } from "@/lib/db";
 import { encrypt, decrypt } from "@/lib/crypto";
 import type { Settings } from "@/lib/types";
 import { DEFAULT_EVO_URL } from "@/server/paths";
+import { logger } from "@/lib/logger";
 
 const defaults: Settings = {
   url: DEFAULT_EVO_URL,
@@ -102,9 +103,9 @@ export function loadTenantSettings(tenantId: string): Settings {
       apiKey = decrypt(tenant.evoApiKeyEncrypted);
     } catch (e: any) {
       // ENCRYPTION_KEY mudou ou payload corrompido
-      console.error(
-        `[settings] Falha ao decriptografar API key do tenant ${tenantId}:`,
-        e?.message
+      logger.error(
+        { tenantId, err: e?.message },
+        "Falha ao decriptografar API key"
       );
       apiKey = "";
     }

@@ -1,6 +1,7 @@
 import { getDb, schema } from "@/lib/db";
 import { and, desc, eq, gte, like, lte, sql } from "drizzle-orm";
 import crypto from "crypto";
+import { logger } from "@/lib/logger";
 
 export interface AuditEntry {
   id: string;
@@ -38,8 +39,7 @@ export function logAudit(args: LogAuditArgs): void {
       .run();
   } catch (e) {
     // Best-effort: nunca propaga erro
-    // eslint-disable-next-line no-console
-    console.error("[audit] falha ao registrar:", args.action, e);
+    logger.error({ err: e, action: args.action }, "Falha ao registrar audit log");
   }
 }
 
