@@ -6,6 +6,8 @@
  * SaaS Phase 4: itera sobre todos os tenants ativos (não mais sobre
  * uma lista global).
  */
+import { logger } from "@/lib/logger";
+const log = logger.child({ module: "scheduler" });
 import { eq } from "drizzle-orm";
 import {
   listSchedules,
@@ -54,7 +56,19 @@ function listActiveTenants(): { id: string; name: string }[] {
 }
 
 function failSchedule(s: Schedule, message: string) {
-  updateSchedule(s.tenantId || "", s.id, {
+  if (!s.tenantId) {
+    log.error({ scheduleId: s.id, message }, "failSchedule sem tenantId — não consegue atualizar DB");
+    hub.broadcast({
+      type: "log",
+      payload: {
+        ts: new Date().toISOString(),
+        line: `Agendamento falhou: ${message}`,
+        level: "error",
+      },
+    });
+    return;
+  }
+  updateSchedule(s.tenantId, s.id, {
     status: "failed",
     error: message,
   });
@@ -73,7 +87,11 @@ function failSchedule(s: Schedule, message: string) {
 }
 
 function markRunning(s: Schedule) {
-  updateSchedule(s.tenantId || "", s.id, { status: "running" });
+  if (!s.tenantId) {
+    log.error({ scheduleId: s.id }, "markRunning sem tenantId — não consegue atualizar DB");
+    return;
+  }
+  updateSchedule(s.tenantId, s.id, { status: "running" });
   hub.broadcast({
     type: "schedule_update",
     payload: { id: s.id, status: "running" },
@@ -89,12 +107,17 @@ function markFinished(s: Schedule, status: "sent" | "failed") {
 }
 
 async function startScheduledSend(s: Schedule) {
+  log.info({ scheduleId: s.id, tenantId: s.tenantId }, "Iniciando agendamento");
   if (!s.tenantId) {
     failSchedule(s, "Schedule sem tenantId (inválido).");
     return;
   }
 
   const settings = loadTenantSettings(s.tenantId);
+  log.info(
+    { scheduleId: s.id, hasUrl: !!settings.url, hasKey: !!settings.api_key, hasInstance: !!settings.instance, contactsMode: s.contact_mode, contactsLen: s.contacts?.length || 0 },
+    "Settings + contatos carregados"
+  );
 
   // Para contact_mode='current', pega os contatos ATUAIS do tenant
   const currentContacts = listContacts(s.tenantId);
@@ -129,6 +152,7 @@ async function startScheduledSend(s: Schedule) {
     return;
   }
 
+  log.info({ scheduleId: s.id, url: settings.url, instance: settings.instance }, "Validando Evolution API");
   const client = new EvoClient(settings.url, settings.api_key, settings.instance);
   const { ok, info } = await client.instanceExists();
   if (!ok) {
@@ -151,6 +175,7 @@ async function startScheduledSend(s: Schedule) {
     }
     return;
   }
+  log.info({ scheduleId: s.id }, "Evolution API OK, iniciando sender");
 
   markRunning(s);
   hub.broadcast({
@@ -196,8 +221,17 @@ function checkDue() {
   for (const t of tenants) {
     const due = listDuePending(t.id);
     if (due.length > 0) {
+      log.info(
+        { tenantId: t.id, tenantName: t.name, count: due.length, scheduleId: due[0].id },
+        "Agendamento devido encontrado"
+      );
       // Pega o mais antigo (já vem ordenado de listDuePending)
-      void startScheduledSend(due[0]);
+      void startScheduledSend(due[0]).catch((e) => {
+        log.error(
+          { err: e?.message || String(e), scheduleId: due[0].id },
+          "Exceção async em startScheduledSend"
+        );
+      });
       return; // um por vez (sender não suporta paralelo)
     }
   }
@@ -232,6 +266,7 @@ function markMissedOnStartup() {
 export function startSchedulerLoop() {
   const loop = getLoop();
   if (loop.interval) return;
+  log.info("Scheduler loop iniciando");
   markMissedOnStartup();
   loop.interval = setInterval(() => {
     try {
@@ -273,10 +308,11 @@ export function startSchedulerLoop() {
           sender.setActiveScheduleId(null);
         }
       }
-    } catch (e) {
-      // não derruba o loop
+    } catch (e: any) {
+      log.error({ err: e?.message || e }, "Erro no scheduler tick");
     }
   }, 30_000);
+  log.info({ intervalMs: 30_000 }, "Scheduler loop ativo");
 }
 
 export function stopSchedulerLoop() {

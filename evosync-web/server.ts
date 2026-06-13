@@ -105,6 +105,20 @@ async function main() {
   };
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+  // Handlers globais de erro: evita que exceções não-tratadas matem o
+  // processo inteiro. O Next.js tem seu próprio handler; só logamos aqui
+  // pra diagnóstico e deixamos o processo continuar (a parte importante
+  // é o scheduler loop e o server HTTP).
+  process.on("uncaughtException", (err) => {
+    logger.error({ err, kind: "uncaughtException" }, "Exceção não tratada");
+  });
+  process.on("unhandledRejection", (reason: any) => {
+    logger.error(
+      { reason: reason?.message || String(reason), kind: "unhandledRejection" },
+      "Promise rejeitada não tratada"
+    );
+  });
 }
 
 main().catch((e) => {

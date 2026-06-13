@@ -11,6 +11,11 @@
  *   - warn: algo inesperado mas recuperável
  *   - error: falha
  *   - fatal: crash iminente
+ *
+ * IMPORTANTE: NÃO usar `transport: pino-pretty` aqui. O `thread-stream` que
+ * ele usa depende de um worker file que o Next.js webpack não consegue
+ * empacotar corretamente, gerando uncaughtException que mata o processo.
+ * Use JSON puro em dev também — é menos bonito mas estável.
  */
 import pino from "pino";
 
@@ -19,13 +24,7 @@ const level = process.env.LOG_LEVEL || (isDev ? "debug" : "info");
 
 export const logger = pino({
   level,
-  // Em dev, pretty print. Em prod, JSON puro.
-  transport: isDev
-    ? {
-        target: "pino-pretty",
-        options: { colorize: true, translateTime: "HH:MM:ss.l" },
-      }
-    : undefined,
+  // JSON puro sempre (sem transport). Estável, parseável, journald-friendly.
   base: {
     app: "evosync",
     env: process.env.NODE_ENV || "development",

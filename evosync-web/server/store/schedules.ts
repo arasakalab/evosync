@@ -53,6 +53,7 @@ function asInt(v: any, d: number): number {
 function rowToSchedule(row: typeof schema.schedules.$inferSelect): Schedule {
   return {
     id: row.id,
+    tenantId: row.tenantId,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
     scheduled_at: row.scheduledAt,
