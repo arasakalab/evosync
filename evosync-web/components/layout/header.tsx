@@ -5,8 +5,10 @@ import { useSession } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { SendStateBadge } from "@/components/status-badge";
 import { LogoutButton } from "@/components/admin/logout-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { CircleDot, History, Users, UserCircle2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 export function Header() {
   const { data: session } = useSession();
@@ -35,59 +37,56 @@ export function Header() {
   }, [status.sent]);
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-panel/30 px-4 md:px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border glass-strong px-4 md:px-6">
       <div className="flex items-center gap-2 md:hidden">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15 text-primary">
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-primary text-white">
           <Send className="h-4 w-4" />
         </div>
-        <span className="font-bold tracking-tight">EvoSync</span>
+        <span className="font-bold font-display tracking-tight">EvoSync</span>
       </div>
-      <div className="flex items-center gap-2 md:gap-3 ml-auto">
-        <div className="hidden md:flex items-center gap-2 rounded-md border border-border bg-panel/60 px-3 py-1.5 text-xs">
-          <Users className="h-3.5 w-3.5 text-muted" />
-          <span className="text-muted">Catálogo:</span>
-          <span className="font-semibold text-text">{contactsCount}</span>
+      <div className="flex items-center gap-1.5 md:gap-2 ml-auto flex-wrap justify-end">
+        <div className="hidden md:flex items-center gap-2 rounded-lg border border-border bg-surface/60 px-3 py-1.5 text-xs">
+          <Users className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-muted-foreground">Catálogo:</span>
+          <span className="font-semibold text-foreground tabular-nums">{contactsCount}</span>
         </div>
         {selectedIds.size > 0 && (
-          <div className="hidden md:flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs">
+          <div className="hidden md:flex items-center gap-2 rounded-lg border border-primary/40 bg-primary-subtle px-3 py-1.5 text-xs">
             <span className="text-primary">Selecionados:</span>
-            <span className="font-semibold text-primary">{selectedIds.size}</span>
+            <span className="font-semibold text-primary tabular-nums">{selectedIds.size}</span>
           </div>
         )}
-        <div className="hidden md:flex items-center gap-2 rounded-md border border-border bg-panel/60 px-3 py-1.5 text-xs">
-          <History className="h-3.5 w-3.5 text-muted" />
-          <span className="text-muted">Histórico:</span>
-          <span className="font-semibold text-text">{historyCount}</span>
+        <div className="hidden md:flex items-center gap-2 rounded-lg border border-border bg-surface/60 px-3 py-1.5 text-xs">
+          <History className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-muted-foreground">Histórico:</span>
+          <span className="font-semibold text-foreground tabular-nums">{historyCount}</span>
         </div>
-        <div className="flex items-center gap-2 rounded-md border border-border bg-panel/60 px-3 py-1.5 text-xs">
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/60 px-3 py-1.5 text-xs">
           <CircleDot
-            className={`h-3.5 w-3.5 ${
-              connection.ok ? "text-success animate-pulse-soft" : "text-muted"
-            }`}
+            className={cn(
+              "h-3.5 w-3.5",
+              connection.ok ? "text-success animate-pulse-soft" : "text-muted-foreground"
+            )}
           />
-          <span className="text-muted">Conexão:</span>
+          <span className="text-muted-foreground">Conexão:</span>
           <span
-            className={`font-semibold ${
-              connection.ok ? "text-success" : "text-muted"
-            }`}
+            className={cn(
+              "font-semibold",
+              connection.ok ? "text-success" : "text-muted-foreground"
+            )}
           >
             {connection.ok ? connection.state || "OK" : "—"}
           </span>
         </div>
         <SendStateBadge state={status.state} />
         {session?.user && (
-          <>
-            <div className="hidden md:flex items-center gap-2 rounded-md border border-border bg-panel/60 px-3 py-1.5 text-xs">
-              <UserCircle2 className="h-3.5 w-3.5 text-muted" />
-              <span className="text-muted">{session.user.email}</span>
-              <span className="text-muted/60">·</span>
-              <span className="font-semibold text-text capitalize">
-                {session.user.role.replace("_", " ")}
-              </span>
-            </div>
-            <LogoutButton />
-          </>
+          <div className="hidden md:flex items-center gap-2 rounded-lg border border-border bg-surface/60 px-3 py-1.5 text-xs">
+            <UserCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground truncate max-w-[160px]">{session.user.email}</span>
+          </div>
         )}
+        <ThemeToggle />
+        {session?.user && <LogoutButton />}
       </div>
     </header>
   );

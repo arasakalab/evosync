@@ -1,7 +1,8 @@
 import { getDb, schema } from "@/lib/db";
-import { desc, eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import LicensesTable from "./table";
-import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/admin/page-header";
+import { KeyRound } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -17,30 +18,33 @@ export default function AdminLicensesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Licenças</h2>
-        <p className="text-sm text-slate-500 mt-1">
-          Cada tenant precisa de pelo menos uma licença ativa. Licenças
-          expiram em 30 dias por padrão; renove para estender.
-        </p>
-      </div>
+      <PageHeader
+        title="Licenças"
+        description="Cada tenant precisa de pelo menos uma licença ativa. Renove para estender a validade."
+        breadcrumbs={[
+          { label: "Admin", href: "/admin" },
+          { label: "Licenças" },
+        ]}
+        badge={
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-subtle border border-primary/20 px-2.5 py-0.5 text-2xs font-medium text-primary">
+            <KeyRound className="h-3 w-3" />
+            {licenses.length} emitida(s)
+          </span>
+        }
+      />
 
-      <Card>
-        <CardContent className="p-0">
-          <LicensesTable
-            licenses={licenses.map((l) => ({
-              id: l.id,
-              tenantId: l.tenantId,
-              tenantName: tenantById.get(l.tenantId)?.name || "(removido)",
-              tenantSlug: tenantById.get(l.tenantId)?.slug || "—",
-              status: l.status,
-              issuedAt: l.issuedAt,
-              expiresAt: l.expiresAt,
-              notes: l.notes,
-            }))}
-          />
-        </CardContent>
-      </Card>
+      <LicensesTable
+        licenses={licenses.map((l) => ({
+          id: l.id,
+          tenantId: l.tenantId,
+          tenantName: tenantById.get(l.tenantId)?.name || "(removido)",
+          tenantSlug: tenantById.get(l.tenantId)?.slug || "—",
+          status: l.status,
+          issuedAt: l.issuedAt,
+          expiresAt: l.expiresAt,
+          notes: l.notes,
+        }))}
+      />
     </div>
   );
 }

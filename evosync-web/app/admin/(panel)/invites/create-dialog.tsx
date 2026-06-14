@@ -21,7 +21,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Copy, Check } from "lucide-react";
+import { Plus, Loader2, Copy, Check, Mail, Sparkles, UserPlus, Send } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface Tenant {
@@ -92,7 +93,7 @@ export default function CreateInviteDialog({ tenants }: { tenants: Tenant[] }) {
     >
       <DialogTrigger asChild>
         <Button>
-          <Plus className="h-4 w-4 mr-1.5" />
+          <Plus className="h-4 w-4" />
           Novo convite
         </Button>
       </DialogTrigger>
@@ -100,42 +101,59 @@ export default function CreateInviteDialog({ tenants }: { tenants: Tenant[] }) {
         {!created ? (
           <>
             <DialogHeader>
-              <DialogTitle>Emitir convite</DialogTitle>
-              <DialogDescription>
-                Gera um link único que expira em {days} dia(s). Envie
-                manualmente para o operador (email, WhatsApp, etc).
-              </DialogDescription>
+              <div className="flex items-start gap-3 mb-1">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-subtle ring-1 ring-primary/20">
+                  <UserPlus className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <DialogTitle>Emitir convite</DialogTitle>
+                  <DialogDescription className="mt-1">
+                    Gera um link único que expira em {days} dia(s). Envie
+                    manualmente para o operador.
+                  </DialogDescription>
+                </div>
+              </div>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
                 <Label htmlFor="tenant">Tenant</Label>
                 <Select value={tenantId} onValueChange={setTenantId}>
                   <SelectTrigger id="tenant">
-                    <SelectValue placeholder="Selecione…" />
+                    <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
                     {tenants.map((t) => (
                       <SelectItem key={t.id} value={t.id}>
-                        {t.name} <span className="text-slate-400">({t.slug})</span>
+                        {t.name}{" "}
+                        <span className="text-muted-foreground">({t.slug})</span>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email do convidado</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="operador@empresa.com"
-                />
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="operador@empresa.com"
+                    className="pl-9"
+                  />
+                </div>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="role">Papel</Label>
-                  <Select value={role} onValueChange={(v: any) => setRole(v)}>
+                  <Select
+                    value={role}
+                    onValueChange={(v: any) => setRole(v)}
+                  >
                     <SelectTrigger id="role">
                       <SelectValue />
                     </SelectTrigger>
@@ -146,35 +164,68 @@ export default function CreateInviteDialog({ tenants }: { tenants: Tenant[] }) {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="days">Expira em (dias)</Label>
-                  <Input
-                    id="days"
-                    type="number"
-                    min={1}
-                    max={30}
-                    value={days}
-                    onChange={(e) => setDays(Number(e.target.value) || 7)}
-                  />
+                  <Label htmlFor="days">Expira em</Label>
+                  <Select
+                    value={String(days)}
+                    onValueChange={(v) => setDays(Number(v))}
+                  >
+                    <SelectTrigger id="days">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 dia</SelectItem>
+                      <SelectItem value="3">3 dias</SelectItem>
+                      <SelectItem value="7">7 dias</SelectItem>
+                      <SelectItem value="14">14 dias</SelectItem>
+                      <SelectItem value="30">30 dias</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
+              <Button
+                variant="outline"
+                onClick={() => setOpen(false)}
+                disabled={busy}
+              >
                 Cancelar
               </Button>
-              <Button onClick={submit} disabled={busy || !tenantId || !email}>
-                {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Emitir convite
+              <Button
+                onClick={submit}
+                disabled={busy || !tenantId || !email}
+                variant="gradient"
+              >
+                {busy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Emitindo...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    Emitir convite
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </>
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Convite criado para {created.email}</DialogTitle>
-              <DialogDescription>
-                Envie este link ao operador. Ele terá {days} dia(s) para aceitá-lo.
-              </DialogDescription>
+              <div className="flex items-start gap-3 mb-1">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-success-subtle ring-1 ring-success/20">
+                  <Sparkles className="h-5 w-5 text-success" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <DialogTitle>Convite criado!</DialogTitle>
+                  <DialogDescription className="mt-1">
+                    Envie este link para{" "}
+                    <strong className="text-foreground">{created.email}</strong>{" "}
+                    — ele terá {days} dia(s) para aceitar.
+                  </DialogDescription>
+                </div>
+              </div>
             </DialogHeader>
             <div className="py-2">
               <Label>Link de aceite</Label>
@@ -185,20 +236,29 @@ export default function CreateInviteDialog({ tenants }: { tenants: Tenant[] }) {
                   className="font-mono text-xs"
                   onClick={(e) => e.currentTarget.select()}
                 />
-                <Button onClick={copyUrl} variant="outline" size="icon">
+                <Button
+                  onClick={copyUrl}
+                  variant={copied ? "default" : "outline"}
+                  size="icon"
+                >
                   {copied ? (
-                    <Check className="h-4 w-4 text-emerald-500" />
+                    <Check className="h-4 w-4 text-success" />
                   ) : (
                     <Copy className="h-4 w-4" />
                   )}
                 </Button>
               </div>
-              <p className="text-[11px] text-slate-500 mt-2">
-                Você também pode ver este link na tabela de convites (botão copiar).
+              <p className="text-2xs text-muted-foreground mt-2">
+                Você também pode copiar depois na tabela de convites.
               </p>
             </div>
             <DialogFooter>
-              <Button onClick={() => { setOpen(false); reset(); }}>
+              <Button
+                onClick={() => {
+                  setOpen(false);
+                  reset();
+                }}
+              >
                 Fechar
               </Button>
             </DialogFooter>

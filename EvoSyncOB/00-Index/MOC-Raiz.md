@@ -82,6 +82,15 @@ O repositório contém **dois apps** que coexistem:
 
 - [[Template-ADR]] — esqueleto reutilizável para novos ADRs
 
+## Design System
+
+Documentação visual do admin EvoSync v2 (Linear + Vercel minimal, dark default).
+
+- [[Design-System-v2]] — visão geral do redesign
+- [[Design-Tokens]] — cores HSL, tipografia, espaçamento, sombras, animações
+- [[Componentes]] — catálogo (StatCard, PageHeader, StatusBadge, EmptyState, ConfirmDialog, CommandPalette, etc.)
+- [[Direcao-Visual]] — referências e decisões de design
+
 ## Tags mais usadas
 
 `#evosync` `#adr` `#arquitetura` `#operacao` `#seguranca` `#desktop` `#web` `#lgpd`

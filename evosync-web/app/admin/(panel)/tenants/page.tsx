@@ -1,7 +1,9 @@
 import { getDb, schema } from "@/lib/db";
-import { desc, eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import TenantsTable from "./table";
 import CreateTenantDialog from "./create-dialog";
+import { PageHeader } from "@/components/admin/page-header";
+import { Building2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +26,6 @@ export default function AdminTenantsPage() {
     .all();
   const licenses = db.select().from(schema.licenses).all();
 
-  // Map: tenantId -> { userCount, latestLicense }
   const meta = new Map<
     string,
     { userCount: number; latestLicense: typeof schema.licenses.$inferSelect | null }
@@ -42,15 +43,15 @@ export default function AdminTenantsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Empresas (Tenants)</h2>
-          <p className="text-sm text-slate-500 mt-1">
-            {tenants.length} cadastrada(s)
-          </p>
-        </div>
-        <CreateTenantDialog />
-      </div>
+      <PageHeader
+        title="Empresas (Tenants)"
+        description="Gerencie os tenants cadastrados no EvoSync e suas licenças."
+        breadcrumbs={[
+          { label: "Admin", href: "/admin" },
+          { label: "Empresas" },
+        ]}
+        actions={<CreateTenantDialog />}
+      />
 
       <TenantsTable
         tenants={tenants.map((t) => ({

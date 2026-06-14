@@ -3,8 +3,17 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Search, User, Shield, Mail } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { EmptyState } from "@/components/admin/empty-state";
+import {
+  Search,
+  Shield,
+  User as UserIcon,
+  Mail,
+  Building2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface UserRow {
   id: string;
@@ -20,108 +29,198 @@ interface UserRow {
 
 export default function UsersTable({ users }: { users: UserRow[] }) {
   const [search, setSearch] = useState("");
-  const filtered = users.filter(
-    (u) =>
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+
+  const filtered = users.filter((u) => {
+    const matchSearch =
+      !search ||
       u.email.toLowerCase().includes(search.toLowerCase()) ||
       (u.name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (u.tenantName || "").toLowerCase().includes(search.toLowerCase())
-  );
+      (u.tenantName || "").toLowerCase().includes(search.toLowerCase());
+    const matchRole = roleFilter === "all" || u.role === roleFilter;
+    return matchSearch && matchRole;
+  });
+
+  const counts = {
+    all: users.length,
+    super_admin: users.filter((u) => u.role === "super_admin").length,
+    owner: users.filter((u) => u.role === "owner").length,
+    operator: users.filter((u) => u.role === "operator").length,
+  };
 
   return (
-    <>
-      <div className="relative max-w-sm p-4 pb-0">
-        <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-        <Input
-          placeholder="Buscar por email, nome ou tenant…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {[
+            { key: "all", label: "Todos", count: counts.all },
+            { key: "super_admin", label: "Super admins", count: counts.super_admin },
+            { key: "owner", label: "Owners", count: counts.owner },
+            { key: "operator", label: "Operators", count: counts.operator },
+          ].map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setRoleFilter(f.key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium transition-all",
+                roleFilter === f.key
+                  ? "bg-primary text-primary-foreground shadow-elev-1"
+                  : "bg-surface border border-border text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {f.label}
+              <span
+                className={cn(
+                  "inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full text-2xs",
+                  roleFilter === f.key
+                    ? "bg-primary-foreground/20"
+                    : "bg-muted"
+                )}
+              >
+                {f.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Buscar por email, nome ou tenant..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
       </div>
 
-      <div className="overflow-x-auto pt-2">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-900/50 border-y border-slate-200 dark:border-slate-800">
-            <tr className="text-left">
-              <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Usuário</th>
-              <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Tenant</th>
-              <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Role</th>
-              <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Status</th>
-              <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Criado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={5} className="text-center py-12 text-slate-500">
-                  Nenhum usuário encontrado.
-                </td>
-              </tr>
-            )}
-            {filtered.map((u) => (
-              <tr
-                key={u.id}
-                className="border-b last:border-0 border-slate-100 dark:border-slate-800"
-              >
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-slate-300 to-slate-400 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center">
-                      {u.role === "super_admin" ? (
-                        <Shield className="h-3.5 w-3.5 text-white" />
-                      ) : (
-                        <User className="h-3.5 w-3.5 text-white" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="font-medium">{u.name || "—"}</div>
-                      <div className="text-xs text-slate-500 flex items-center gap-1">
-                        <Mail className="h-3 w-3" />
-                        {u.email}
-                      </div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                  {u.tenantName ? (
-                    <>
-                      <div>{u.tenantName}</div>
-                      <div className="text-xs text-slate-500">{u.tenantSlug}</div>
-                    </>
-                  ) : (
-                    <span className="text-xs text-slate-400 italic">—</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <Badge
-                    variant="outline"
-                    className={
-                      u.role === "super_admin"
-                        ? "border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-300"
-                        : ""
-                    }
-                  >
-                    {u.role}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3">
-                  <Badge
-                    className={
-                      u.status === "active"
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                        : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                    }
-                  >
-                    {u.status}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3 text-xs text-slate-500">
-                  {new Date(u.createdAt).toLocaleDateString("pt-BR")}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
+      {filtered.length === 0 ? (
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={UserIcon}
+              title="Nenhum usuário encontrado"
+              variant="minimal"
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface-alt/40">
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+                      Usuário
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+                      Tenant
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+                      Papel
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+                      Criado
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((u) => {
+                    const isSuper = u.role === "super_admin";
+                    return (
+                      <tr
+                        key={u.id}
+                        className="border-b border-border last:border-0 transition-colors hover:bg-surface-alt/40 group"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={cn(
+                                "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white font-semibold text-xs",
+                                isSuper
+                                  ? "bg-gradient-to-br from-primary to-info"
+                                  : "bg-gradient-to-br from-info to-primary"
+                              )}
+                            >
+                              {isSuper ? (
+                                <Shield className="h-4 w-4" />
+                              ) : (
+                                <span>
+                                  {(u.name || u.email)
+                                    .split(" ")
+                                    .map((p) => p[0])
+                                    .slice(0, 2)
+                                    .join("")
+                                    .toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-medium text-foreground truncate">
+                                {u.name || (
+                                  <span className="text-muted-foreground/60">
+                                    Sem nome
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+                                <Mail className="h-3 w-3" />
+                                {u.email}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {u.tenantName ? (
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                              <div>
+                                <div className="text-foreground">
+                                  {u.tenantName}
+                                </div>
+                                <div className="text-xs text-muted-foreground font-mono">
+                                  {u.tenantSlug}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/60 italic">
+                              —
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-mono uppercase",
+                              isSuper
+                                ? "bg-primary-subtle text-primary border border-primary/20"
+                                : "bg-muted text-muted-foreground"
+                            )}
+                          >
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={u.status} />
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">
+                          {new Date(u.createdAt).toLocaleDateString("pt-BR")}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

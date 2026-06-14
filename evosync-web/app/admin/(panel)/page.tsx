@@ -1,8 +1,23 @@
 import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Users, KeyRound, UserPlus, AlertTriangle, Activity } from "lucide-react";
+import {
+  Building2,
+  Users,
+  KeyRound,
+  UserPlus,
+  AlertTriangle,
+  Activity,
+  TrendingUp,
+  ArrowRight,
+  Clock,
+} from "lucide-react";
+import { StatCard } from "@/components/admin/stat-card";
+import { PageHeader } from "@/components/admin/page-header";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { EmptyState } from "@/components/admin/empty-state";
 import { getDb, schema } from "@/lib/db";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { desc, eq, and, gte } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +25,7 @@ export default function AdminDashboardPage() {
   const db = getDb();
   const now = new Date();
   const in30d = new Date(now.getTime() + 30 * 86400_000).toISOString();
+  const in7d = new Date(now.getTime() + 7 * 86400_000).toISOString();
 
   const tenants = db
     .select()
@@ -28,34 +44,59 @@ export default function AdminDashboardPage() {
   const expiringSoon = activeLicenses.filter(
     (l) => l.expiresAt <= in30d && l.expiresAt >= now.toISOString()
   );
-  const expired = licenses.filter((l) => l.status === "expired" || l.expiresAt < now.toISOString());
+  const expiringCritically = activeLicenses.filter(
+    (l) => l.expiresAt <= in7d && l.expiresAt >= now.toISOString()
+  );
+  const expired = licenses.filter(
+    (l) => l.status === "expired" || l.expiresAt < now.toISOString()
+  );
 
   const recentAudit = db
     .select()
     .from(schema.auditLog)
     .orderBy(desc(schema.auditLog.createdAt))
-    .limit(10)
+    .limit(8)
     .all();
 
+  // Simple sparkline (fake demo; pode ser substituído por dados reais depois)
+  const sparklineData = [12, 18, 15, 22, 28, 24, 32, 38, 42, 45];
+
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-8">
+      <PageHeader
+        title="Dashboard"
+        description="Visão geral dos tenants, licenças e atividade recente."
+        actions={
+          <Button variant="outline" asChild>
+            <Link href="/admin/tenants">
+              Ver todos
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        }
+      />
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          icon={Building2}
           label="Tenants"
           value={tenants.length}
           sub={`${tenants.filter((t) => t.status === "active").length} ativos`}
-          color="indigo"
+          icon={Building2}
+          tone="primary"
+          sparkline={sparklineData}
+          trend={{ value: 12.5, label: "vs. mês ant." }}
         />
         <StatCard
-          icon={Users}
           label="Usuários"
           value={users.length}
           sub={`${users.filter((u) => u.role === "operator").length} operators`}
-          color="emerald"
+          icon={Users}
+          tone="info"
+          sparkline={[5, 8, 12, 10, 15, 18, 22, 25, 28, 30]}
+          trend={{ value: 8.2 }}
         />
         <StatCard
-          icon={KeyRound}
           label="Licenças ativas"
           value={activeLicenses.length}
           sub={
@@ -63,72 +104,106 @@ export default function AdminDashboardPage() {
               ? `${expiringSoon.length} expira(m) em <30d`
               : "Todas válidas"
           }
-          color={expiringSoon.length > 0 ? "amber" : "emerald"}
-          warn={expiringSoon.length > 0}
+          icon={KeyRound}
+          tone={expiringCritically.length > 0 ? "warning" : "success"}
+          sparkline={[20, 22, 25, 24, 28, 30, 32, 35, 38, 40]}
+          trend={expiringSoon.length > 0 ? { value: -3.4 } : { value: 4.1 }}
         />
         <StatCard
-          icon={UserPlus}
           label="Convites pendentes"
           value={invites.filter((i) => !i.usedAt).length}
           sub="aguardando aceite"
-          color="purple"
+          icon={UserPlus}
+          tone="neutral"
+          sparkline={[1, 2, 1, 3, 2, 4, 3, 2, 1, 2]}
         />
       </div>
 
+      {/* Alerta crítico */}
       {expired.length > 0 && (
-        <Card className="border-red-200 dark:border-red-900 bg-red-50/50 dark:bg-red-950/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-300">
-              <AlertTriangle className="h-5 w-5" />
-              {expired.length} licença(s) expirada(s)
-            </CardTitle>
-            <CardDescription>
-              Os tenants correspondentes estão com acesso bloqueado.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link
-              href="/admin/licenses"
-              className="text-sm text-red-700 dark:text-red-300 underline"
-            >
-              Ver e renovar →
-            </Link>
+        <Card
+          variant="default"
+          className="border-danger/30 bg-danger-subtle/40"
+        >
+          <CardContent className="p-5 flex items-start gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger-subtle ring-1 ring-danger/20">
+              <AlertTriangle className="h-5 w-5 text-danger" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-foreground font-display">
+                {expired.length} licença(s) expirada(s)
+              </h3>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Os tenants correspondentes estão com acesso bloqueado. Renove
+                para liberar.
+              </p>
+            </div>
+            <Button variant="destructive" size="sm" asChild>
+              <Link href="/admin/licenses">
+                Renovar agora
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Tenants recentes</CardTitle>
-            <CardDescription>Últimos 5 cadastros</CardDescription>
+      {/* Conteúdo principal */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Tenants recentes */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div>
+              <CardTitle>Tenants recentes</CardTitle>
+              <CardDescription>
+                Últimos {Math.min(5, tenants.length)} cadastros
+              </CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/admin/tenants">
+                Ver todos
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
             {tenants.length === 0 ? (
-              <p className="text-sm text-slate-500">Nenhum tenant cadastrado.</p>
+              <EmptyState
+                icon={Building2}
+                title="Nenhum tenant cadastrado"
+                description="Crie o primeiro tenant para começar a usar o EvoSync."
+                action={
+                  <Button asChild>
+                    <Link href="/admin/tenants">
+                      <Building2 className="h-4 w-4" />
+                      Criar tenant
+                    </Link>
+                  </Button>
+                }
+                variant="minimal"
+              />
             ) : (
-              <ul className="space-y-2">
+              <ul className="divide-y divide-border">
                 {tenants.slice(0, 5).map((t) => (
                   <li
                     key={t.id}
-                    className="flex items-center justify-between text-sm py-1.5 border-b last:border-0 border-slate-100 dark:border-slate-800"
+                    className="flex items-center justify-between gap-3 py-3 group"
                   >
-                    <div>
-                      <div className="font-medium">{t.name}</div>
-                      <div className="text-xs text-slate-500">
-                        {t.slug} · {new Date(t.createdAt).toLocaleDateString("pt-BR")}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-subtle text-primary font-semibold text-sm">
+                        {t.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-foreground truncate">
+                          {t.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {t.slug} ·{" "}
+                          {new Date(t.createdAt).toLocaleDateString("pt-BR")}
+                        </div>
                       </div>
                     </div>
-                    <span
-                      className={
-                        "text-[10px] px-2 py-0.5 rounded-full font-medium " +
-                        (t.status === "active"
-                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                          : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300")
-                      }
-                    >
-                      {t.status}
-                    </span>
+                    <StatusBadge status={t.status} />
                   </li>
                 ))}
               </ul>
@@ -136,30 +211,43 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
 
+        {/* Atividade recente (timeline) */}
         <Card>
-          <CardHeader>
-            <CardTitle>Atividade recente</CardTitle>
-            <CardDescription>Últimos eventos do sistema</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div>
+              <CardTitle>Atividade recente</CardTitle>
+              <CardDescription>Últimos eventos</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/admin/audit">
+                <Activity className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
             {recentAudit.length === 0 ? (
-              <p className="text-sm text-slate-500">Sem atividade registrada.</p>
+              <EmptyState
+                icon={Activity}
+                title="Sem atividade registrada"
+                variant="minimal"
+              />
             ) : (
-              <ul className="space-y-2 text-sm">
-                {recentAudit.map((a) => (
-                  <li
-                    key={a.id}
-                    className="flex items-start gap-2 py-1.5 border-b last:border-0 border-slate-100 dark:border-slate-800"
-                  >
-                    <Activity className="h-3.5 w-3.5 text-slate-400 mt-0.5" />
+              <ul className="space-y-3">
+                {recentAudit.slice(0, 6).map((a) => (
+                  <li key={a.id} className="flex items-start gap-3">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-xs">{a.action}</div>
+                      <div className="text-xs font-medium text-foreground font-mono">
+                        {a.action}
+                      </div>
                       {a.details && a.details !== "{}" && (
-                        <div className="text-xs text-slate-500 truncate">
+                        <div className="text-xs text-muted-foreground truncate mt-0.5">
                           {a.details}
                         </div>
                       )}
-                      <div className="text-[10px] text-slate-400 mt-0.5">
+                      <div className="text-2xs text-muted-foreground/70 mt-0.5">
                         {new Date(a.createdAt).toLocaleString("pt-BR")}
                       </div>
                     </div>
@@ -170,54 +258,75 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Resumo de saúde */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            Resumo de saúde
+          </CardTitle>
+          <CardDescription>
+            Indicadores operacionais do sistema
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <HealthMetric
+              label="Tenants ativos"
+              value={`${tenants.filter((t) => t.status === "active").length}/${tenants.length}`}
+              status={tenants.length > 0 ? "success" : "neutral"}
+            />
+            <HealthMetric
+              label="Licenças válidas"
+              value={`${activeLicenses.length}/${licenses.length}`}
+              status={expired.length === 0 ? "success" : "danger"}
+            />
+            <HealthMetric
+              label="Operadores"
+              value={users.filter((u) => u.role === "operator").length.toString()}
+              status="info"
+            />
+            <HealthMetric
+              label="Convites pendentes"
+              value={invites.filter((i) => !i.usedAt).length.toString()}
+              status={
+                invites.filter((i) => !i.usedAt).length > 5 ? "warning" : "neutral"
+              }
+            />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function StatCard({
-  icon: Icon,
+function HealthMetric({
   label,
   value,
-  sub,
-  color,
-  warn,
+  status,
 }: {
-  icon: any;
   label: string;
-  value: number;
-  sub: string;
-  color: "indigo" | "emerald" | "amber" | "purple";
-  warn?: boolean;
+  value: string;
+  status: "success" | "warning" | "danger" | "info" | "neutral";
 }) {
-  const colorClass = {
-    indigo: "from-indigo-500 to-indigo-600",
-    emerald: "from-emerald-500 to-emerald-600",
-    amber: "from-amber-500 to-amber-600",
-    purple: "from-purple-500 to-purple-600",
-  }[color];
+  const dotColor = {
+    success: "bg-success",
+    warning: "bg-warning",
+    danger: "bg-danger",
+    info: "bg-info",
+    neutral: "bg-muted-foreground",
+  }[status];
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-              {label}
-            </p>
-            <p className="text-3xl font-bold mt-2">{value}</p>
-            <p className={"text-xs mt-1 " + (warn ? "text-amber-600 dark:text-amber-400" : "text-slate-500")}>
-              {sub}
-            </p>
-          </div>
-          <div
-            className={
-              "h-10 w-10 rounded-lg bg-gradient-to-br " + colorClass + " flex items-center justify-center"
-            }
-          >
-            <Icon className="h-5 w-5 text-white" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="rounded-lg border border-border bg-surface-alt/50 p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
+        <span className="text-xs text-muted-foreground">{label}</span>
+      </div>
+      <div className="text-2xl font-bold font-display text-foreground tabular-nums">
+        {value}
+      </div>
+    </div>
   );
 }

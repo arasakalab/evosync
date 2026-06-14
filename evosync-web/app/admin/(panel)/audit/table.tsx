@@ -5,8 +5,18 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Search, X, ChevronLeft, ChevronRight, Activity } from "lucide-react";
+import { EmptyState } from "@/components/admin/empty-state";
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Activity,
+  Filter,
+  Clock,
+  User,
+  Building2,
+  ScrollText,
+} from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -14,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 interface AuditEntry {
   id: string;
@@ -34,6 +45,19 @@ interface Props {
   currentPage: number;
 }
 
+const actionTone: Record<string, string> = {
+  "auth.login.success": "info",
+  "auth.login.failed": "danger",
+  "tenant.created": "success",
+  "tenant.suspended": "warning",
+  "tenant.activated": "success",
+  "invite.created": "info",
+  "invite.revoked": "warning",
+  "user.created_via_invite": "success",
+  "license.extended": "success",
+  "contacts.cleared": "danger",
+};
+
 export default function AuditTable({
   entries,
   actions,
@@ -46,7 +70,6 @@ export default function AuditTable({
   const router = useRouter();
   const sp = useSearchParams();
   const [, startTransition] = useTransition();
-  const [search, setSearch] = useState(filters.action || "");
 
   const tenantById = new Map(tenants.map((t) => [t.id, t]));
   const userById = new Map(users.map((u) => [u.id, u]));
@@ -69,10 +92,30 @@ export default function AuditTable({
   const hasFilters =
     filters.tenantId || filters.userId || filters.action || filters.from || filters.to;
 
+  function actionColor(action: string) {
+    const tone = actionTone[action];
+    if (tone === "danger")
+      return "bg-danger-subtle text-danger-foreground border-danger/20";
+    if (tone === "warning")
+      return "bg-warning-subtle text-warning-foreground border-warning/20";
+    if (tone === "success")
+      return "bg-success-subtle text-success-foreground border-success/20";
+    if (tone === "info")
+      return "bg-info-subtle text-info-foreground border-info/20";
+    return "bg-muted text-muted-foreground border-border";
+  }
+
   return (
-    <>
+    <div className="space-y-4">
+      {/* Filters */}
       <Card>
-        <CardContent className="p-4 space-y-3">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Filtros
+            </span>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
             <Select
               value={filters.tenantId || "_all"}
@@ -125,23 +168,17 @@ export default function AuditTable({
               </SelectContent>
             </Select>
 
-            <div>
-              <Input
-                type="date"
-                value={filters.from || ""}
-                onChange={(e) => setFilter("from", e.target.value || undefined)}
-                placeholder="De"
-              />
-            </div>
+            <Input
+              type="date"
+              value={filters.from || ""}
+              onChange={(e) => setFilter("from", e.target.value || undefined)}
+            />
 
-            <div>
-              <Input
-                type="date"
-                value={filters.to || ""}
-                onChange={(e) => setFilter("to", e.target.value || undefined)}
-                placeholder="Até"
-              />
-            </div>
+            <Input
+              type="date"
+              value={filters.to || ""}
+              onChange={(e) => setFilter("to", e.target.value || undefined)}
+            />
           </div>
 
           {hasFilters && (
@@ -149,102 +186,111 @@ export default function AuditTable({
               variant="ghost"
               size="sm"
               onClick={() => router.push("/admin/audit")}
-              className="text-slate-500"
+              className="mt-3 text-muted-foreground"
             >
-              <X className="h-3.5 w-3.5 mr-1" />
+              <X className="h-3.5 w-3.5" />
               Limpar filtros
             </Button>
           )}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
-                <tr className="text-left">
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Quando</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Ação</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Tenant</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Usuário</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Detalhes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="text-center py-12 text-slate-500">
-                      <Activity className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      Nenhum registro encontrado.
-                    </td>
-                  </tr>
-                )}
-                {entries.map((e) => {
-                  const tenant = e.tenantId ? tenantById.get(e.tenantId) : null;
-                  const user = e.userId ? userById.get(e.userId) : null;
-                  return (
-                    <tr
-                      key={e.id}
-                      className="border-b last:border-0 border-slate-100 dark:border-slate-800"
-                    >
-                      <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
-                        {new Date(e.createdAt).toLocaleString("pt-BR")}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <Badge variant="outline" className="font-mono text-[10px]">
-                          {e.action}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300 text-xs">
-                        {tenant ? tenant.name : <span className="text-slate-400">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300 text-xs">
-                        {user ? user.name || user.email : <span className="text-slate-400">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs">
-                        {e.details && e.details !== "{}" ? (
-                          <code className="text-[11px] bg-slate-50 dark:bg-slate-900 px-1.5 py-0.5 rounded">
-                            {e.details.length > 200 ? e.details.slice(0, 200) + "…" : e.details}
+      {entries.length === 0 ? (
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={ScrollText}
+              title="Nenhum registro encontrado"
+              description="Ajuste os filtros para ver outros eventos."
+              variant="minimal"
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0 overflow-hidden">
+            <ul className="divide-y divide-border">
+              {entries.map((e) => {
+                const tenant = e.tenantId ? tenantById.get(e.tenantId) : null;
+                const user = e.userId ? userById.get(e.userId) : null;
+                return (
+                  <li
+                    key={e.id}
+                    className="p-4 hover:bg-surface-alt/40 transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+                        <Activity className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-md border px-2 py-0.5 text-2xs font-mono",
+                              actionColor(e.action)
+                            )}
+                          >
+                            {e.action}
+                          </span>
+                          {tenant && (
+                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                              <Building2 className="h-3 w-3" />
+                              {tenant.name}
+                            </span>
+                          )}
+                          {user && (
+                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                              <User className="h-3 w-3" />
+                              {user.name || user.email}
+                            </span>
+                          )}
+                        </div>
+                        {e.details && e.details !== "{}" && (
+                          <code className="block text-2xs bg-muted/50 border border-border/50 rounded-md px-2 py-1.5 font-mono text-foreground/80 overflow-x-auto">
+                            {e.details.length > 500
+                              ? e.details.slice(0, 500) + "…"
+                              : e.details}
                           </code>
-                        ) : (
-                          <span className="text-slate-400">—</span>
                         )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <div className="flex items-center gap-1 text-2xs text-muted-foreground/70">
+                          <Clock className="h-3 w-3" />
+                          {new Date(e.createdAt).toLocaleString("pt-BR")}
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-slate-800">
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={currentPage <= 1}
-                onClick={() => goPage(currentPage - 1)}
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Anterior
-              </Button>
-              <span className="text-xs text-slate-500">
-                {currentPage} / {totalPages}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={currentPage >= totalPages}
-                onClick={() => goPage(currentPage + 1)}
-              >
-                Próxima
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => goPage(currentPage - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => goPage(currentPage + 1)}
+                >
+                  Próxima
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

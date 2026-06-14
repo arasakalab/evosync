@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -17,14 +17,24 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
+const display = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+  weight: ["500", "600", "700"],
+});
+
 export const metadata: Metadata = {
-  title: "EvoSync — Disparador via Evolution API",
+  title: "EvoSync — Painel administrativo",
   description:
     "EvoSync — Disparador em massa de mensagens WhatsApp via Evolution API. UI web profissional em Next.js.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b1411",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f9f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a1411" },
+  ],
   width: "device-width",
   initialScale: 1,
 };
@@ -35,8 +45,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR" className="dark">
-      <body className={`${inter.variable} ${mono.variable} font-sans`}>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body
+        className={`${inter.variable} ${mono.variable} ${display.variable} font-sans`}
+      >
         <Providers>
           <TooltipProvider delayDuration={150}>
             {children}

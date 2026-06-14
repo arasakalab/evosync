@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "3dc7105e78c4dc13",
+        "id": "e88acf0727502fa7",
         "type": "tabs",
         "children": [
           {
-            "id": "2f545926aab0702a",
+            "id": "7b515e06d8389f6e",
             "type": "leaf",
             "state": {
               "type": "graph",
@@ -177,8 +177,16 @@
       "bases:Criar nova base": false
     }
   },
-  "active": "2f545926aab0702a",
+  "active": "7b515e06d8389f6e",
   "lastOpenFiles": [
+    "05-Design-System/Design-System-v2.md",
+    "05-Design-System/Direcao-Visual.md",
+    "05-Design-System/Componentes.md",
+    "05-Design-System/Design-Tokens.md",
+    "05-Design-System",
+    "00-Index/MOC-Raiz.md",
+    "MOC.md",
+    "02-Operacao/Seguranca.md",
     "03-Negocios/Guia-Cliente-Primeiros-Passos.md",
     "02-Operacao/Runbook-Suporte-Diagnostico.md",
     "02-Operacao/Runbook-Cobranca-Licenca.md",
@@ -190,7 +198,6 @@
     "04-Diario/2026-06-14.md",
     "99-Templates/Template-ADR.md",
     "00-Index/MOC-SaaS-Web.md",
-    "00-Index/MOC-Raiz.md",
     "01-Arquitetura/Modulo-Contatos-Web.md",
     "01-Arquitetura/Decisoes/ADR-001-Contatos-Organizados.md",
     "01-Arquitetura/Decisoes/ADR-002-Evolution-API-BYOTenant.md",

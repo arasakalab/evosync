@@ -2,13 +2,32 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Building2,
+  MoreHorizontal,
+  Pause,
+  Play,
+  Trash2,
+  Search,
+  X,
+  Plus,
+  KeyRound,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Search, Building2, KeyRound, MoreVertical, Pause, Play, Trash2 } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { EmptyState } from "@/components/admin/empty-state";
+import { ConfirmDialog } from "@/components/admin/confirm-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface Tenant {
   id: string;
@@ -22,14 +41,26 @@ interface Tenant {
 
 export default function TenantsTable({ tenants }: { tenants: Tenant[] }) {
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [busy, setBusy] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Tenant | null>(null);
   const router = useRouter();
 
-  const filtered = tenants.filter(
-    (t) =>
+  const filtered = tenants.filter((t) => {
+    const matchSearch =
+      !search ||
       t.name.toLowerCase().includes(search.toLowerCase()) ||
-      t.slug.toLowerCase().includes(search.toLowerCase())
-  );
+      t.slug.toLowerCase().includes(search.toLowerCase());
+    const matchStatus =
+      statusFilter === "all" || t.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  const counts = {
+    all: tenants.length,
+    active: tenants.filter((t) => t.status === "active").length,
+    suspended: tenants.filter((t) => t.status === "suspended").length,
+  };
 
   async function updateStatus(id: string, status: string) {
     setBusy(id);
@@ -39,142 +70,290 @@ export default function TenantsTable({ tenants }: { tenants: Tenant[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
-      if (res.ok) router.refresh();
+      if (res.ok) {
+        toast.success(
+          status === "active" ? "Tenant ativado" : "Tenant suspenso"
+        );
+        router.refresh();
+      } else {
+        toast.error("Erro ao atualizar");
+      }
     } finally {
       setBusy(null);
     }
   }
 
+  async function deleteTenant() {
+    if (!deleting) return;
+    const res = await fetch(`/api/admin/tenants/${deleting.id}`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      toast.success("Tenant deletado", {
+        description: deleting.name,
+      });
+      setDeleting(null);
+      router.refresh();
+    } else {
+      toast.error("Erro ao deletar");
+    }
+  }
+
   return (
-    <>
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-        <Input
-          placeholder="Buscar por nome ou slug…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+    <div className="space-y-4">
+      {/* Filters bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {[
+            { key: "all", label: "Todos", count: counts.all },
+            { key: "active", label: "Ativos", count: counts.active },
+            { key: "suspended", label: "Suspensos", count: counts.suspended },
+          ].map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setStatusFilter(f.key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium",
+                "transition-all duration-200",
+                statusFilter === f.key
+                  ? "bg-primary text-primary-foreground shadow-elev-1"
+                  : "bg-surface border border-border text-muted-foreground hover:text-foreground hover:border-border/80"
+              )}
+            >
+              {f.label}
+              <span
+                className={cn(
+                  "inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full text-2xs",
+                  statusFilter === f.key
+                    ? "bg-primary-foreground/20"
+                    : "bg-muted"
+                )}
+              >
+                {f.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Buscar por nome ou slug..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted text-muted-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
-                <tr className="text-left">
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Empresa</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Status</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Usuários</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Licença</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-400">Criada</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="text-center py-12 text-slate-500">
-                      Nenhum tenant encontrado.
-                    </td>
+      {/* Table */}
+      {filtered.length === 0 ? (
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={Building2}
+              title={
+                search
+                  ? "Nenhum tenant encontrado"
+                  : "Nenhum tenant cadastrado"
+              }
+              description={
+                search
+                  ? `Não encontramos resultados para "${search}".`
+                  : "Crie o primeiro tenant para começar."
+              }
+              variant="minimal"
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface-alt/40">
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+                      Empresa
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+                      Usuários
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+                      Licença
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+                      Criada
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider w-12">
+                    </th>
                   </tr>
-                )}
-                {filtered.map((t) => {
-                  const licOk = t.latestLicense?.status === "active";
-                  const licExp = t.latestLicense
-                    ? new Date(t.latestLicense.expiresAt)
-                    : null;
-                  const licExpSoon =
-                    licExp && licExp.getTime() - Date.now() < 30 * 86400_000;
-                  return (
-                    <tr
-                      key={t.id}
-                      className="border-b last:border-0 border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white">
-                            <Building2 className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <div className="font-medium">{t.name}</div>
-                            <div className="text-xs text-slate-500">{t.slug}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          variant={t.status === "active" ? "default" : "secondary"}
-                          className={
-                            t.status === "active"
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                              : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                          }
-                        >
-                          {t.status}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                        {t.userCount}
-                      </td>
-                      <td className="px-4 py-3">
-                        {t.latestLicense ? (
-                          <div className="text-xs">
-                            <div
-                              className={
-                                licOk
-                                  ? licExpSoon
-                                    ? "text-amber-600 dark:text-amber-400"
-                                    : "text-emerald-600 dark:text-emerald-400"
-                                  : "text-red-600 dark:text-red-400"
-                              }
-                            >
-                              {licExpSoon && licOk
-                                ? "Expira em breve"
-                                : t.latestLicense.status}
+                </thead>
+                <tbody>
+                  {filtered.map((t) => {
+                    const licExp = t.latestLicense
+                      ? new Date(t.latestLicense.expiresAt)
+                      : null;
+                    const daysToExp = licExp
+                      ? Math.floor(
+                          (licExp.getTime() - Date.now()) / 86400_000
+                        )
+                      : null;
+                    const licCritical =
+                      daysToExp !== null && daysToExp <= 7 && daysToExp >= 0;
+                    const licWarning =
+                      daysToExp !== null && daysToExp <= 30 && daysToExp > 7;
+                    return (
+                      <tr
+                        key={t.id}
+                        className="border-b border-border last:border-0 transition-colors hover:bg-surface-alt/40 group"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 text-primary font-semibold text-xs ring-1 ring-primary/20">
+                              {t.name
+                                .split(" ")
+                                .map((p) => p[0])
+                                .slice(0, 2)
+                                .join("")
+                                .toUpperCase()}
                             </div>
-                            <div className="text-slate-500">
-                              {licExp?.toLocaleDateString("pt-BR")}
+                            <div className="min-w-0">
+                              <div className="font-medium text-foreground truncate">
+                                {t.name}
+                              </div>
+                              <div className="text-xs text-muted-foreground font-mono">
+                                {t.slug}
+                              </div>
                             </div>
                           </div>
-                        ) : (
-                          <span className="text-xs text-red-600">Sem licença</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-slate-500 text-xs">
-                        {new Date(t.createdAt).toLocaleDateString("pt-BR")}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {t.status === "active" ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={busy === t.id}
-                              onClick={() => updateStatus(t.id, "suspended")}
-                            >
-                              <Pause className="h-3.5 w-3.5" />
-                            </Button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={t.status} />
+                        </td>
+                        <td className="px-4 py-3 text-foreground">
+                          <div className="inline-flex items-center gap-1.5">
+                            <span className="font-medium tabular-nums">
+                              {t.userCount}
+                            </span>
+                            <span className="text-muted-foreground text-xs">
+                              {t.userCount === 1 ? "usuário" : "usuários"}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {t.latestLicense && licExp ? (
+                            <div className="space-y-0.5">
+                              <div
+                                className={cn(
+                                  "text-xs font-medium flex items-center gap-1.5",
+                                  licCritical
+                                    ? "text-danger"
+                                    : licWarning
+                                    ? "text-warning"
+                                    : "text-foreground"
+                                )}
+                              >
+                                <KeyRound className="h-3 w-3" />
+                                {daysToExp !== null && daysToExp >= 0
+                                  ? daysToExp === 0
+                                    ? "Expira hoje"
+                                    : `${daysToExp}d restantes`
+                                  : "Expirada"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {licExp.toLocaleDateString("pt-BR")}
+                              </div>
+                            </div>
                           ) : (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={busy === t.id}
-                              onClick={() => updateStatus(t.id, "active")}
-                            >
-                              <Play className="h-3.5 w-3.5" />
-                            </Button>
+                            <span className="text-xs text-danger-foreground bg-danger-subtle border border-danger/20 rounded-full px-2 py-0.5">
+                              Sem licença
+                            </span>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-    </>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground text-xs">
+                          {new Date(t.createdAt).toLocaleDateString("pt-BR")}
+                        </td>
+                        <td className="px-4 py-3">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                disabled={busy === t.id}
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              {t.status === "active" ? (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    updateStatus(t.id, "suspended")
+                                  }
+                                  className="gap-2"
+                                >
+                                  <Pause className="h-3.5 w-3.5" />
+                                  Suspender
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  onClick={() => updateStatus(t.id, "active")}
+                                  className="gap-2"
+                                >
+                                  <Play className="h-3.5 w-3.5" />
+                                  Ativar
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => setDeleting(t)}
+                                className="gap-2 text-danger focus:text-danger"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Deletar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title="Deletar tenant"
+        description={
+          <>
+            Esta ação é <strong>irreversível</strong>. Todos os contatos,
+            agendamentos, envios e logs do tenant{" "}
+            <strong className="text-foreground">{deleting?.name}</strong>{" "}
+            serão removidos.
+          </>
+        }
+        confirmText="Deletar permanentemente"
+        tone="danger"
+        onConfirm={deleteTenant}
+      />
+    </div>
   );
 }

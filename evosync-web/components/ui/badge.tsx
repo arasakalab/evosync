@@ -3,32 +3,57 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors",
+  [
+    "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
+    "transition-colors",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary/15 text-primary",
-        secondary: "border-border bg-neutral/50 text-text",
-        blue: "border-blue/30 bg-blue/10 text-blue",
-        success: "border-success/30 bg-success/10 text-success",
-        warn: "border-warn/30 bg-warn/10 text-warn",
-        danger: "border-danger/30 bg-danger/10 text-danger-soft",
-        outline: "border-border text-text",
-        muted: "border-border bg-panel text-muted",
+        default:
+          "bg-primary-subtle text-primary border border-primary/20",
+        secondary:
+          "bg-muted text-foreground border border-border",
+        outline: "border border-border text-foreground bg-transparent",
+        success:
+          "bg-success-subtle text-success-foreground border border-success/20",
+        warning:
+          "bg-warning-subtle text-warning-foreground border border-warning/20",
+        danger:
+          "bg-danger-subtle text-danger-foreground border border-danger/20",
+        info:
+          "bg-info-subtle text-info-foreground border border-info/20",
+        muted:
+          "bg-muted text-muted-foreground border border-border",
+        // legacy
+        blue: "bg-info-subtle text-info-foreground border border-info/20",
+        warn: "bg-warning-subtle text-warning-foreground border border-warning/20",
+        "danger-soft": "bg-danger-subtle text-danger-foreground border border-danger/20",
+      },
+      size: {
+        default: "text-xs px-2.5 py-0.5",
+        sm: "text-2xs px-2 py-0.5",
+        lg: "text-sm px-3 py-1",
       },
     },
     defaultVariants: {
       variant: "default",
+      size: "default",
     },
   }
 );
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof badgeVariants> {}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+function Badge({ className, variant, size, ...props }: BadgeProps) {
+  return (
+    <span
+      className={cn(badgeVariants({ variant, size, className }))}
+      {...props}
+    />
+  );
 }
 
 export { Badge, badgeVariants };

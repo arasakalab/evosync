@@ -2,6 +2,10 @@ import { listAudit, listAuditActions } from "@/server/store/audit";
 import { getDb, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import AuditTable from "./table";
+import { PageHeader } from "@/components/admin/page-header";
+import { ScrollText, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -37,21 +41,28 @@ export default function AdminAuditPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Auditoria</h2>
-          <p className="text-sm text-slate-500 mt-1">
-            {result.total.toLocaleString("pt-BR")} registro(s) no total · Página {page} de{" "}
-            {Math.max(1, Math.ceil(result.total / limit))}
-          </p>
-        </div>
-        <a
-          href={"/api/admin/audit/export" + buildQueryString(searchParams)}
-          className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-        >
-          ↓ Exportar CSV
-        </a>
-      </div>
+      <PageHeader
+        title="Auditoria"
+        description={`${result.total.toLocaleString("pt-BR")} registro(s) · Página ${page} de ${Math.max(1, Math.ceil(result.total / limit))}`}
+        breadcrumbs={[
+          { label: "Admin", href: "/admin" },
+          { label: "Auditoria" },
+        ]}
+        badge={
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-info-subtle border border-info/20 px-2.5 py-0.5 text-2xs font-medium text-info-foreground">
+            <ScrollText className="h-3 w-3" />
+            log de ações
+          </span>
+        }
+        actions={
+          <Button variant="outline" asChild>
+            <Link href={"/api/admin/audit/export" + buildQueryString(searchParams)}>
+              <Download className="h-4 w-4" />
+              Exportar CSV
+            </Link>
+          </Button>
+        }
+      />
 
       <AuditTable
         entries={result.entries}

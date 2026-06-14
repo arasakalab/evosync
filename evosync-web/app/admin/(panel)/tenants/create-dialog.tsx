@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Building2, Loader2, Plus, Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2 } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 export default function CreateTenantDialog() {
   const [open, setOpen] = useState(false);
@@ -68,18 +69,26 @@ export default function CreateTenantDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
-          <Plus className="h-4 w-4 mr-1.5" />
+          <Plus className="h-4 w-4" />
           Nova empresa
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Cadastrar nova empresa</DialogTitle>
-          <DialogDescription>
-            Cria o tenant e emite uma licença inicial. Você poderá convidar
-            o primeiro operador na próxima tela.
-          </DialogDescription>
+          <div className="flex items-start gap-3 mb-1">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-subtle ring-1 ring-primary/20">
+              <Building2 className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <DialogTitle>Cadastrar nova empresa</DialogTitle>
+              <DialogDescription className="mt-1">
+                Cria o tenant e emite uma licença inicial. Você poderá
+                convidar o primeiro operador na próxima tela.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
+
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label htmlFor="name">Nome da empresa</Label>
@@ -88,45 +97,90 @@ export default function CreateTenantDialog() {
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
-                if (!slug) setSlug(autoSlug(e.target.value));
+                if (!slug || slug === autoSlug(name)) {
+                  setSlug(autoSlug(e.target.value));
+                }
               }}
               placeholder="Ex: Padaria do Zé"
+              autoFocus
             />
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="slug">Slug (identificador único)</Label>
-            <Input
-              id="slug"
-              value={slug}
-              onChange={(e) => setSlug(autoSlug(e.target.value))}
-              placeholder="padaria-do-ze"
-            />
-            <p className="text-[11px] text-slate-500">
-              Usado em URLs e referências internas. Apenas letras, números e hífen.
+            <Label htmlFor="slug">Slug</Label>
+            <div className="relative">
+              <Input
+                id="slug"
+                value={slug}
+                onChange={(e) => setSlug(autoSlug(e.target.value))}
+                placeholder="padaria-do-ze"
+                className="font-mono"
+              />
+            </div>
+            <p className="text-2xs text-muted-foreground">
+              Identificador único (URLs, Docker, banco). Apenas letras,
+              números e hífen.
             </p>
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="days">Dias de licença</Label>
-            <Input
-              id="days"
-              type="number"
-              min={1}
-              max={3650}
-              value={days}
-              onChange={(e) => setDays(Number(e.target.value) || 30)}
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                id="days"
+                type="number"
+                min={1}
+                max={3650}
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value) || 30)}
+              />
+              <div className="flex items-center gap-1">
+                {[30, 90, 365].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDays(d)}
+                    className="text-2xs h-7 px-2.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-surface-alt transition-colors"
+                  >
+                    {d}d
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-2xs text-muted-foreground">
+              Após criar, você pode renovar a qualquer momento em
+              <span className="text-foreground/70"> Licenças</span>.
+            </p>
           </div>
+
           {error && (
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-subtle px-3 py-2 text-sm text-danger-foreground">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
           )}
         </div>
+
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
+          <Button
+            variant="outline"
+            onClick={() => setOpen(false)}
+            disabled={busy}
+          >
             Cancelar
           </Button>
-          <Button onClick={submit} disabled={busy}>
-            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Criar
+          <Button onClick={submit} disabled={busy} variant="gradient">
+            {busy ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Criando...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                Criar tenant
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
