@@ -30,5 +30,6 @@ data/uploads/
 
 # TypeScript incremental build cache
 tsconfig.tsbuildinfo
-evosync-web/logs/server.pid
-evosync-web/logs/*.pid
+
+# Logs
+logs/
