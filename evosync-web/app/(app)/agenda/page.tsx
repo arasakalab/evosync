@@ -59,6 +59,7 @@ export default function AgendaPage() {
   const schedules = useAppStore((s) => s.schedules);
   const setSchedules = useAppStore((s) => s.setSchedules);
   const updateSchedule = useAppStore((s) => s.updateSchedule);
+  const contactSelectedIds = useAppStore((s) => s.selectedIds);
 
   const [date, setDate] = useState(todayDateInput());
   const [time, setTime] = useState(nowTimeInput(addDays(new Date(), 1)));
@@ -131,6 +132,11 @@ export default function AgendaPage() {
         media_path: mediaPath.trim(),
         media_type: mediaType,
         contact_mode: contactMode,
+        // FASE 5: envia contactIds no modo current (congelado no agendamento)
+        contact_ids:
+          contactMode === "current" && contactSelectedIds.size > 0
+            ? Array.from(contactSelectedIds)
+            : [],
         delay_min: settings.delay_min,
         delay_max: settings.delay_max,
         daily_limit: settings.daily_limit,
@@ -281,7 +287,7 @@ export default function AgendaPage() {
                     Congelar contatos atuais
                   </SelectItem>
                   <SelectItem value="current">
-                    Usar contatos da tela no horário
+                    Usar seleção atual ({contactSelectedIds.size}) no horário
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -455,11 +461,13 @@ export default function AgendaPage() {
                         </td>
                         <td className="px-3 py-2.5 text-center text-muted">
                           {s.contact_mode === "current"
-                            ? "atual"
+                            ? s.selected_contact_ids?.length ?? 0
                             : (s.contacts?.length ?? 0)}
                         </td>
                         <td className="px-3 py-2.5 text-muted">
-                          {s.contact_mode === "current" ? "Lista atual" : "Congelado"}
+                          {s.contact_mode === "current"
+                            ? `Atual (${s.selected_contact_ids?.length ?? 0})`
+                            : "Congelado"}
                         </td>
                         <td className="px-3 py-2.5 text-text/80 max-w-[420px]">
                           {truncated || <span className="text-muted/60">—</span>}

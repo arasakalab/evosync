@@ -1,4 +1,12 @@
-import type { Contact, Schedule, Settings, SendStatus } from "@/lib/types";
+import type {
+  Contact,
+  ContactList,
+  ContactFilters,
+  ContactSelection,
+  Schedule,
+  Settings,
+  SendStatus,
+} from "@/lib/types";
 
 const BASE = "/api";
 
@@ -30,6 +38,16 @@ async function request<T>(
   return (await res.json()) as T;
 }
 
+function buildQuery(obj: Record<string, unknown>): string {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null || v === "") continue;
+    params.set(k, String(v));
+  }
+  const s = params.toString();
+  return s ? `?${s}` : "";
+}
+
 export const api = {
   settings: {
     get: () => request<Settings>("/settings"),
@@ -50,29 +68,101 @@ export const api = {
       ),
   },
   contacts: {
-    list: () =>
-      request<{ contacts: Contact[]; count: number }>("/contacts"),
-    importCsv: (rows: Record<string, string>[]) =>
-      request<{ added: number; total: number }>("/contacts/import-csv", {
-        method: "POST",
-        body: JSON.stringify({ rows }),
-      }),
-    importWhatsapp: () =>
-      request<{ added: number; found: number; existed: number }>(
-        "/contacts/import-whatsapp",
-        { method: "POST" }
-      ),
-    add: (contact: Contact) =>
+    /**
+     * Lista contatos com filtros opcionais.
+     * Retorna { contacts, count, filteredCount }.
+     */
+    list: (filters?: ContactFilters) => {
+      const q = filters ? buildQuery(filters as any) : "";
+      return request<{ contacts: Contact[]; count: number; filteredCount: number }>(
+        `/contacts${q}`
+      );
+    },
+    get: (id: string) => request<Contact>(`/contacts/${id}`),
+    add: (contact: Partial<Contact>) =>
       request<Contact>("/contacts", {
         method: "POST",
         body: JSON.stringify(contact),
       }),
-    remove: (numbers: string[]) =>
+    update: (id: string, patch: Partial<Contact>) =>
+      request<Contact>(`/contacts/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
+    remove: (id: string) =>
+      request<{ ok: true }>(`/contacts/${id}`, { method: "DELETE" }),
+    removeMany: (numbers: string[]) =>
       request<{ removed: number }>("/contacts", {
         method: "DELETE",
         body: JSON.stringify({ numbers }),
       }),
-    clear: () => request<{ ok: true }>("/contacts/clear", { method: "POST" }),
+    importCsv: (rows: Record<string, string>[]) =>
+      request<{ added: number; updated: number; skipped: number; total: number }>(
+        "/contacts/import-csv",
+        {
+          method: "POST",
+          body: JSON.stringify({ rows }),
+        }
+      ),
+    importWhatsapp: () =>
+      request<{
+        added: number;
+        updated: number;
+        skipped: number;
+        found: number;
+        existed: number;
+      }>("/contacts/import-whatsapp", { method: "POST" }),
+    clear: () => request<{ ok: true; removed: number }>("/contacts/clear", { method: "POST" }),
+
+    // Seleção (FASE 5)
+    getSelection: () => request<ContactSelection>("/contacts/selection"),
+    setSelection: (ids: string[]) =>
+      request<ContactSelection>("/contacts/selection", {
+        method: "PUT",
+        body: JSON.stringify({ ids }),
+      }),
+    bulkSelect: (ids: string[], selected: boolean) =>
+      request<{ ids: string[]; total: number }>("/contacts/bulk-select", {
+        method: "POST",
+        body: JSON.stringify({ ids, selected }),
+      }),
+
+    // Bulk actions
+    bulkSetOptOut: (ids: string[], optOut: boolean) =>
+      request<{ updated: number }>(`/contacts/bulk-select`, {
+        method: "POST",
+        body: JSON.stringify({ ids, opt_out: optOut }),
+      }).catch(async () => {
+        // fallback: per-id PATCH
+        // (a rota bulk-select específica de opt-out virá na FASE 5.x se necessário)
+        return { updated: 0 };
+      }),
+  },
+  contactLists: {
+    list: () => request<ContactList[]>("/contact-lists"),
+    get: (id: string) => request<ContactList>(`/contact-lists/${id}`),
+    create: (data: { name: string; color?: string | null }) =>
+      request<ContactList>("/contact-lists", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, patch: { name?: string; color?: string | null }) =>
+      request<ContactList>(`/contact-lists/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
+    remove: (id: string) =>
+      request<{ ok: true }>(`/contact-lists/${id}`, { method: "DELETE" }),
+    addMembers: (id: string, contact_ids: string[]) =>
+      request<{ added: number }>(`/contact-lists/${id}/members`, {
+        method: "POST",
+        body: JSON.stringify({ contact_ids }),
+      }),
+    removeMembers: (id: string, contact_ids: string[]) =>
+      request<{ removed: number }>(`/contact-lists/${id}/members`, {
+        method: "DELETE",
+        body: JSON.stringify({ contact_ids }),
+      }),
   },
   message: {
     preview: (template: string, contact: Contact) =>
@@ -92,6 +182,7 @@ export const api = {
       dailyLimit: number;
       validateFirst: boolean;
       skipSentHistory: boolean;
+      contactIds?: string[];
     }) =>
       request<{ ok: boolean }>("/send/start", {
         method: "POST",

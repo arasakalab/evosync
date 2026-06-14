@@ -1,6 +1,39 @@
+export type ContactFields = Record<string, string>;
+
 export interface Contact {
+  id: string;
   number: string;
-  fields: Record<string, string>;
+  name: string | null;
+  tags: string[];
+  lists: string[];
+  opt_out: boolean;
+  notes: string | null;
+  fields: ContactFields;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContactList {
+  id: string;
+  name: string;
+  color: string | null;
+  createdAt: string;
+  memberCount?: number; // derivado, populado em listContactLists
+}
+
+export interface ContactFilters {
+  q?: string;
+  mode?: "all" | "selected" | "opt_out";
+  tag?: string;
+  list?: string;
+  opt_out?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ContactSelection {
+  ids: string[];
+  updatedAt: string;
 }
 
 export type SendState = "idle" | "running" | "paused" | "stopped";
@@ -14,6 +47,7 @@ export interface SendStatus {
   skipped: number;
   no_whatsapp: number;
   invalid: number;
+  opt_out: number;
   current_number: string;
   current_index: number;
   last_message: string;
@@ -61,6 +95,7 @@ export interface Schedule {
   skip_sent_history: boolean;
   contact_mode: ContactMode;
   contacts: Contact[];
+  selected_contact_ids: string[]; // FASE 3: ids selecionados no momento do agendamento (modo current)
   error: string;
   summary: string;
 }

@@ -8,7 +8,7 @@ isolamento total de credenciais.
 
 ## Status
 
-**Versão 1.0.0** — SaaS production-ready.
+**Versão 1.1.0** — SaaS production-ready.
 
 | Fase | Status | Commit |
 |---|---|---|
@@ -21,6 +21,11 @@ isolamento total de credenciais.
 | 7. Audit log estruturado | ✅ | (ver `git log`) |
 | 8. VPS deploy + health | ✅ | (ver `git log`) |
 | 9. Hardening + docs | ✅ | (ver `git log`) |
+| **10. Contatos Organizados (ADR-001 web)** | ✅ | (ver `git log`) |
+
+> **Novidade v1.1**: tela de Contatos agora separa **Catálogo** de **Seleção de Envio**.
+> Suporta tags, listas, opt-out (LGPD/anti-ban) e seleção persistente na nuvem.
+> Ver [`docs/contacts-organization.md`](./docs/contacts-organization.md) para detalhes.
 
 ## Quickstart (local)
 
@@ -43,6 +48,26 @@ npx tsx scripts/seed-admin.ts
 # http://localhost:3000/admin/login
 # super_admin: desenvolvimento@arasakalab.com.br / senha-admin-123
 ```
+
+### Testes E2E (Playwright)
+
+```bash
+# 1. Instalar browser (uma vez)
+npm run test:e2e:install
+
+# 2. Seed de 2 tenants de teste
+npm run db:seed:e2e
+
+# 3. Subir dev server (em outro terminal)
+npm run dev
+
+# 4. Rodar testes
+npm run test:e2e
+```
+
+Credenciais dos tenants de teste (criados pelo `db:seed:e2e`):
+- Tenant 1: `operator@e2e.test` / `e2e1234`
+- Tenant 2: `operator2@e2e.test` / `e2e1234`
 
 ## Quickstart (produção em VPS)
 
@@ -116,7 +141,8 @@ evosync-web/
 │  ├─ api/                     # API routes
 │  │  ├─ admin/                # /api/admin/* (super_admin)
 │  │  ├─ auth/                 # NextAuth
-│  │  ├─ contacts/             # CRUD contatos
+│  │  ├─ contacts/             # CRUD contatos (catálogo + seleção)
+│  │  ├─ contact-lists/        # Listas nomeadas (FASE 5)
 │  │  ├─ schedules/            # CRUD agendamentos
 │  │  ├─ settings/             # Config tenant
 │  │  ├─ send/                 # Iniciar envio
@@ -153,6 +179,7 @@ evosync-web/
 - [`docs/SECURITY.md`](./docs/SECURITY.md) — Modelo de ameaças
 - [`docs/CHANGELOG.md`](./docs/CHANGELOG.md) — Histórico de versões
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — Componentes e fluxos
+- [`docs/contacts-organization.md`](./docs/contacts-organization.md) — **Catálogo vs. seleção (ADR-001)**
 
 ## Compatibilidade com versão Python (legada)
 

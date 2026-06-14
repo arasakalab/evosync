@@ -183,9 +183,20 @@ export const contacts = sqliteTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
     number: text("number").notNull(),
+    name: text("name"),
     // JSON: { nome?: string, empresa?: string, ... }
     fields: text("fields").notNull().default("{}"),
+    // JSON: ["vip", "lead-quente", ...]
+    tags: text("tags").notNull().default("[]"),
+    // JSON: ["promo-jan", "black-friday", ...]
+    lists: text("lists").notNull().default("[]"),
+    // boolean no app (Drizzle converte 0/1 ↔ false/true)
+    optOut: integer("opt_out", { mode: "boolean" }).notNull().default(false),
+    notes: text("notes"),
     createdAt: text("created_at")
+      .notNull()
+      .default(sql`(CURRENT_TIMESTAMP)`),
+    updatedAt: text("updated_at")
       .notNull()
       .default(sql`(CURRENT_TIMESTAMP)`),
   },
@@ -195,7 +206,75 @@ export const contacts = sqliteTable(
       t.tenantId,
       t.number
     ),
+    optOutIdx: index("contacts_tenant_opt_out_idx").on(t.tenantId, t.optOut),
+    nameIdx: index("contacts_tenant_name_idx").on(t.tenantId, t.name),
   })
+);
+
+// ============================================================================
+// Contact Lists — segmentações nomeadas pelo tenant (promo-jan, black-friday, …)
+// ============================================================================
+
+export const contactLists = sqliteTable(
+  "contact_lists",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    color: text("color"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(CURRENT_TIMESTAMP)`),
+  },
+  (t) => ({
+    tenantIdx: index("contact_lists_tenant_idx").on(t.tenantId),
+    tenantNameIdx: uniqueIndex("contact_lists_tenant_name_idx").on(
+      t.tenantId,
+      t.name
+    ),
+  })
+);
+
+// ============================================================================
+// Contact List Members — N:N entre contacts e contact_lists
+// ============================================================================
+
+export const contactListMembers = sqliteTable(
+  "contact_list_members",
+  {
+    listId: text("list_id")
+      .notNull()
+      .references(() => contactLists.id, { onDelete: "cascade" }),
+    contactId: text("contact_id")
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade" }),
+    addedAt: text("added_at")
+      .notNull()
+      .default(sql`(CURRENT_TIMESTAMP)`),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.listId, t.contactId] }),
+    contactIdx: index("contact_list_members_contact_idx").on(t.contactId),
+  })
+);
+
+// ============================================================================
+// Contact Selections — seleção multi-tenant (1 linha por tenant, JSON de ids)
+// ============================================================================
+
+export const contactSelections = sqliteTable(
+  "contact_selections",
+  {
+    tenantId: text("tenant_id")
+      .primaryKey()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    selectedIds: text("selected_ids").notNull().default("[]"),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(CURRENT_TIMESTAMP)`),
+  }
 );
 
 // ============================================================================
@@ -237,8 +316,12 @@ export const schedules = sqliteTable(
     contactMode: text("contact_mode", { enum: ["snapshot", "current"] })
       .notNull()
       .default("snapshot"),
-    // JSON: [{ number, fields }, ...]
+    // JSON: [{ number, fields }, ...] — snapshot de contatos (modo snapshot)
     contacts: text("contacts").notNull().default("[]"),
+    // JSON: ["<contactId>", ...] — ids selecionados no momento do agendamento (modo current)
+    selectedContactIds: text("selected_contact_ids")
+      .notNull()
+      .default("[]"),
     error: text("error").notNull().default(""),
     summary: text("summary").notNull().default(""),
     createdAt: text("created_at")
@@ -320,6 +403,12 @@ export type TenantSetting = typeof tenantSettings.$inferSelect;
 export type NewTenantSetting = typeof tenantSettings.$inferInsert;
 export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
+export type ContactList = typeof contactLists.$inferSelect;
+export type NewContactList = typeof contactLists.$inferInsert;
+export type ContactListMember = typeof contactListMembers.$inferSelect;
+export type NewContactListMember = typeof contactListMembers.$inferInsert;
+export type ContactSelection = typeof contactSelections.$inferSelect;
+export type NewContactSelection = typeof contactSelections.$inferInsert;
 export type Schedule = typeof schedules.$inferSelect;
 export type NewSchedule = typeof schedules.$inferInsert;
 export type SentLog = typeof sentLog.$inferSelect;

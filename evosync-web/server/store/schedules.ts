@@ -68,9 +68,25 @@ function rowToSchedule(row: typeof schema.schedules.$inferSelect): Schedule {
     skip_sent_history: row.skipSentHistory,
     contact_mode: row.contactMode as ContactMode,
     contacts: safeParseContacts(row.contacts),
+    selected_contact_ids: safeParseSelectedContactIds(row.selectedContactIds),
     error: row.error,
     summary: row.summary,
   };
+}
+
+function safeParseSelectedContactIds(
+  raw: string | null | undefined
+): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((x) => typeof x === "string");
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
 }
 
 function safeParseContacts(
@@ -82,12 +98,31 @@ function safeParseContacts(
     if (Array.isArray(parsed)) {
       return parsed
         .filter((c) => c && typeof c === "object")
-        .map((c) => ({
-          number: String(c.number || "").trim(),
-          fields:
-            c.fields && typeof c.fields === "object" ? { ...c.fields } : {},
-        }))
-        .filter((c) => c.number);
+        .map((c) => {
+          // Compat: dados antigos só têm {number, fields}. A FASE 2
+          // vai refatorar para a forma estrita do novo Contact.
+          const num = String(c.number || "").trim();
+          if (!num) return null;
+          const fields =
+            c.fields && typeof c.fields === "object" ? { ...c.fields } : {};
+          return {
+            id: String(c.id || ""),
+            number: num,
+            name: c.name ?? null,
+            tags: Array.isArray(c.tags)
+              ? c.tags.filter((x: any) => typeof x === "string")
+              : [],
+            lists: Array.isArray(c.lists)
+              ? c.lists.filter((x: any) => typeof x === "string")
+              : [],
+            opt_out: Boolean(c.opt_out),
+            notes: c.notes ?? null,
+            fields,
+            createdAt: String(c.createdAt || ""),
+            updatedAt: String(c.updatedAt || ""),
+          } satisfies Contact;
+        })
+        .filter((c): c is Contact => c !== null);
     }
   } catch {
     /* ignore */
@@ -189,6 +224,7 @@ export function createSchedule(
       skipSentHistory: !!data.skip_sent_history,
       contactMode,
       contacts: JSON.stringify(data.contacts || []),
+      selectedContactIds: JSON.stringify(data.selected_contact_ids || []),
       error: data.error || "",
       summary: data.summary || "",
       createdAt: now,
@@ -234,6 +270,8 @@ export function updateSchedule(
       data.contact_mode === "current" ? "current" : "snapshot";
   if (data.contacts !== undefined)
     updates.contacts = JSON.stringify(data.contacts);
+  if (data.selected_contact_ids !== undefined)
+    updates.selectedContactIds = JSON.stringify(data.selected_contact_ids);
   if (data.error !== undefined) updates.error = data.error;
   if (data.summary !== undefined) updates.summary = data.summary;
 

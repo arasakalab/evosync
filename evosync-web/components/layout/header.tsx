@@ -12,7 +12,8 @@ export function Header() {
   const { data: session } = useSession();
   const connection = useAppStore((s) => s.connection);
   const status = useAppStore((s) => s.status);
-  const contacts = useAppStore((s) => s.contacts);
+  const contactsCount = useAppStore((s) => s.contactsCount);
+  const selectedIds = useAppStore((s) => s.selectedIds);
   const [historyCount, setHistoryCount] = useState<number>(0);
 
   useEffect(() => {
@@ -44,9 +45,15 @@ export function Header() {
       <div className="flex items-center gap-2 md:gap-3 ml-auto">
         <div className="hidden md:flex items-center gap-2 rounded-md border border-border bg-panel/60 px-3 py-1.5 text-xs">
           <Users className="h-3.5 w-3.5 text-muted" />
-          <span className="text-muted">Contatos:</span>
-          <span className="font-semibold text-text">{contacts.length}</span>
+          <span className="text-muted">Catálogo:</span>
+          <span className="font-semibold text-text">{contactsCount}</span>
         </div>
+        {selectedIds.size > 0 && (
+          <div className="hidden md:flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs">
+            <span className="text-primary">Selecionados:</span>
+            <span className="font-semibold text-primary">{selectedIds.size}</span>
+          </div>
+        )}
         <div className="hidden md:flex items-center gap-2 rounded-md border border-border bg-panel/60 px-3 py-1.5 text-xs">
           <History className="h-3.5 w-3.5 text-muted" />
           <span className="text-muted">Histórico:</span>

@@ -1,0 +1,1 @@
+ALTER TABLE `schedules` ADD `selected_contact_ids` text DEFAULT '[]' NOT NULL;

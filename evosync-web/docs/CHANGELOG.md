@@ -2,6 +2,92 @@
 
 Todas as mudanças notáveis do EvoSync.
 
+## [1.1.0] — 2026-06-14
+
+### Contatos Organizados (ADR-001 web)
+
+Tela de Contatos agora separa **catálogo** (todos os contatos conhecidos)
+de **seleção de envio** (subconjunto marcado para o próximo disparo).
+Resolve o problema "importei 500, só 80 vão para a campanha X".
+
+#### Adicionado
+
+**Modelo de dados**
+- `Contact` ganha `id, name, tags, lists, opt_out, notes, createdAt, updatedAt` (migration `0001`).
+- Tabelas novas: `contact_lists` (listas nomeadas com UNIQUE por tenant),
+  `contact_list_members` (N:N com CASCADE),
+  `contact_selections` (1 row por tenant, JSON array de IDs).
+- `schedules.selected_contact_ids` (migration `0002`) — congela a seleção
+  vigente no momento do agendamento modo `current`.
+
+**Server (store + API)**
+- `listContacts(tenantId, filters?)` com filtros SQL: `q`, `mode`, `tag`,
+  `list`, `opt_out`, `limit`, `offset`. Retorna
+  `{ contacts, count, filteredCount }`.
+- `addContactsBulk` agora faz **upsert com merge**: preserva
+  `name`/`tags`/`opt_out`/`notes`/`lists` se o caller não passou (LGPD/anti-ban).
+- Funções novas: `getContact`, `updateContact`, `deleteContact`,
+  `bulkSetTag`, `bulkSetOptOut`.
+- `server/store/contact-lists.ts` (CRUD de listas + membership,
+  sincroniza `contacts.lists` denormalizado).
+- `server/store/contact-selections.ts` (get/set/bulkToggle com UPSERT).
+- `lib/api-helpers.ts` (`requireTenantId`, `parseJsonBody`, `validateWith(zod)`).
+- Endpoints novos: `/api/contacts/:id` (GET/PATCH/DELETE),
+  `/api/contacts/bulk-select`, `/api/contacts/selection` (GET/PUT),
+  `/api/contact-lists` (GET/POST), `/api/contact-lists/:id` (GET/PATCH/DELETE),
+  `/api/contact-lists/:id/members` (GET/POST/DELETE).
+- `POST /api/send/start` aceita `contactIds?: string[]`; backend é fonte
+  da verdade, filtra via `mode: "selected"` + checagem de opt-out.
+
+**Sender / Opt-out**
+- `SenderRunner` checa `c.opt_out` antes de validar/enviar — pula
+  com stage `opt_out`, incrementa `status.opt_out`.
+- `SendStatus.opt_out: number` (novo).
+
+**Frontend (Zustand + UI)**
+- `lib/store.ts` estendido: `selectedIds: Set<string>`, `mode`, filtros,
+  `contactLists: ContactList[]`, ações de sync com debounce 300ms.
+- `lib/api.ts` com métodos novos (`selection.get/put`, `bulkSelect`,
+  `contacts.get/update/remove`, `contactLists.*`).
+- Componentes novos: `ContactModeToggle`, `TagChips`, `ListChips`,
+  `BulkActionBar`, `OptOutBadge`, `CreateListDialog`, `AddTagDialog`.
+- `app/(app)/contatos/page.tsx` reescrita: 3 modos, chips de tag/lista,
+  7 colunas na tabela, contador inteligente no header, barra de ação
+  em massa.
+- `app/(app)/disparo/page.tsx`: envia `contactIds` no start; novo card
+  "Opt-out" nos contadores.
+- `app/(app)/agenda/page.tsx`: modo `current` envia `contact_ids`;
+  tabela mostra contagem de `selected_contact_ids`.
+- `components/layout/header.tsx`: contador "Catálogo: X · Selecionados: Y".
+- `components/layout/app-shell.tsx`: hidrata contatos, listas e seleção
+  no mount.
+
+**Testes E2E (Playwright)**
+- `@playwright/test` adicionado como devDep.
+- `playwright.config.ts` + `scripts/seed-e2e.ts` (2 tenants isolados).
+- 5 specs cobrindo: organizar (import + lista + tag + opt-out),
+  persistência de seleção, view modes, isolamento UI, isolamento API.
+
+**Documentação**
+- `docs/contacts-organization.md` (ADR-001 completo).
+- `README.md` atualizado (status v1.1, instruções de teste E2E).
+
+#### Corrigido
+
+- `Contact.id` era descartado pelo mapper em `server/store/contacts.ts` —
+  agora preservado e exposto na UI.
+- Reimport CSV/WA sobrescrevia silenciosamente — agora respeita o invariante
+  LGPD (não reseta opt-out/tags do operador).
+- `SenderRunner` não tinha mecanismo de opt-out — agora pula antes de
+  validar.
+
+#### Compatibilidade
+
+- 2 migrations aditivas (apenas `ADD COLUMN` com default e `CREATE TABLE`).
+- Sem mudança breaking em rotas existentes (apenas adições).
+- Tipo `Contact` ganhou campos opcionais? Não — `id` virou obrigatório
+  no mapper (sempre presente, era bug).
+
 ## [1.0.0] — 2026-06-12
 
 Versão inicial SaaS multi-tenant. Migração do app desktop Python para web.

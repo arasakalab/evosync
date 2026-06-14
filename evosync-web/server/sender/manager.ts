@@ -51,6 +51,7 @@ function defaultStatus(): SendStatus {
     skipped: 0,
     no_whatsapp: 0,
     invalid: 0,
+    opt_out: 0,
     current_number: "",
     current_index: 0,
     last_message: "",

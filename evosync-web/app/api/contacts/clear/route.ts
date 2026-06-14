@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireTenantId } from "@/lib/api-helpers";
 import { clearContacts } from "@/server/store/contacts";
 
 export const dynamic = "force-dynamic";
@@ -9,16 +9,8 @@ export const dynamic = "force-dynamic";
  * SaaS Phase 4: escopado por tenantId da sessão.
  */
 export async function POST() {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-  }
-  if (!session.user.tenantId) {
-    return NextResponse.json(
-      { error: "Super admin não pode limpar contatos" },
-      { status: 403 }
-    );
-  }
-  const removed = clearContacts(session.user.tenantId);
+  const { error, tenantId } = await requireTenantId("limpar contatos");
+  if (error) return error;
+  const removed = clearContacts(tenantId!);
   return NextResponse.json({ ok: true, removed });
 }

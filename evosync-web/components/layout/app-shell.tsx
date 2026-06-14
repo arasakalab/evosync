@@ -29,28 +29,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const setSchedules = useAppStore((s) => s.setSchedules);
   const appendLog = useAppStore((s) => s.appendLog);
   const updateSchedule = useAppStore((s) => s.updateSchedule);
+  const setContactLists = useAppStore((s) => s.setContactLists);
+  const setSelectedIds = useAppStore((s) => s.setSelectedIds);
+  const setSelectionLoaded = useAppStore((s) => s.setSelectionLoaded);
 
   // Carrega estado inicial
   useEffect(() => {
     (async () => {
       try {
-        const [settings, contacts, schedules, status] = await Promise.all([
-          api.settings.get(),
-          api.contacts.list(),
-          api.schedules.list(),
-          api.send.status(),
-        ]);
+        const [settings, contactsRes, schedules, status, lists, selection] =
+          await Promise.all([
+            api.settings.get(),
+            api.contacts.list(),
+            api.schedules.list(),
+            api.send.status(),
+            api.contactLists.list().catch(() => []),
+            api.contacts.getSelection().catch(() => ({ ids: [], updatedAt: "" })),
+          ]);
         setSettings(settings);
-        setContacts(contacts.contacts);
+        setContacts(contactsRes.contacts, {
+          count: contactsRes.count,
+          filteredCount: contactsRes.filteredCount,
+        });
         setSchedules(schedules);
         setStatus(status);
+        setContactLists(lists);
+        setSelectedIds(selection.ids);
       } catch (e) {
         // silencioso — o usuário verá erros nos formulários
         // eslint-disable-next-line no-console
         console.error(e);
+      } finally {
+        setSelectionLoaded(true);
       }
     })();
-  }, [setSettings, setContacts, setSchedules, setStatus]);
+  }, [
+    setSettings,
+    setContacts,
+    setSchedules,
+    setStatus,
+    setContactLists,
+    setSelectedIds,
+    setSelectionLoaded,
+  ]);
 
   // WS: alimenta store
   useWebSocket((event) => {

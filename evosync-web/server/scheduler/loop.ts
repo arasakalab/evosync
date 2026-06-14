@@ -120,11 +120,23 @@ async function startScheduledSend(s: Schedule) {
   );
 
   // Para contact_mode='current', pega os contatos ATUAIS do tenant
-  const currentContacts = listContacts(s.tenantId);
-  const contacts =
-    s.contact_mode === "current"
-      ? currentContacts
-      : (s.contacts || []).filter((c) => c && c.number);
+  // FASE 3: filtra pelos selected_contact_ids persistidos (lista congelada no
+  // momento do agendamento). Se vazio, fallback para o catálogo inteiro.
+  const currentResult = listContacts(s.tenantId);
+  const allContacts = currentResult.contacts;
+  let contacts: typeof allContacts;
+  if (s.contact_mode === "current") {
+    const selectedIds = s.selected_contact_ids || [];
+    if (selectedIds.length > 0) {
+      const idSet = new Set(selectedIds);
+      contacts = allContacts.filter((c) => idSet.has(c.id));
+    } else {
+      // Migração/legado: schedule sem selected_contact_ids → usa catálogo
+      contacts = allContacts;
+    }
+  } else {
+    contacts = (s.contacts || []).filter((c) => c && c.number) as typeof allContacts;
+  }
 
   if (!contacts.length) {
     failSchedule(s, "Nenhum contato disponível para o envio agendado.");

@@ -20,6 +20,7 @@ import {
   XOctagon,
   Clock,
   FileWarning,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,6 +49,8 @@ export default function DisparoPage() {
   const setSettings = useAppStore((s) => s.setSettings);
   const status = useAppStore((s) => s.status);
   const contacts = useAppStore((s) => s.contacts);
+  const selectedIds = useAppStore((s) => s.selectedIds);
+  const mode = useAppStore((s) => s.contactsMode);
   const logs = useAppStore((s) => s.logs);
   const clearLogs = useAppStore((s) => s.clearLogs);
 
@@ -90,8 +93,18 @@ export default function DisparoPage() {
       toast.error("Já existe um disparo em andamento");
       return;
     }
-    if (!contacts.length) {
+    // FASE 5: se o modo é "selected", envia apenas os IDs marcados.
+    // Caso contrário, envia o catálogo inteiro.
+    const useSelection = mode === "selected" && selectedIds.size > 0;
+    if (useSelection) {
+      // OK — usa selectedIds
+    } else if (!contacts.length) {
       toast.error("Importe ou adicione contatos antes de iniciar");
+      return;
+    } else if (mode === "selected" && selectedIds.size === 0) {
+      toast.error(
+        "Nenhum contato selecionado. Vá em Contatos e marque quem vai para o disparo."
+      );
       return;
     }
     setActing(true);
@@ -106,9 +119,14 @@ export default function DisparoPage() {
         dailyLimit,
         validateFirst,
         skipSentHistory: !resendSent,
+        contactIds: useSelection ? Array.from(selectedIds) : undefined,
       });
       clearLogs();
-      toast.success("Disparo iniciado");
+      toast.success(
+        useSelection
+          ? `Disparo iniciado (${selectedIds.size} selecionado${selectedIds.size !== 1 ? "s" : ""})`
+          : "Disparo iniciado"
+      );
     } catch (e: any) {
       toast.error(e?.message || "Falha ao iniciar");
     } finally {
@@ -313,6 +331,13 @@ export default function DisparoPage() {
           label="Sem WhatsApp"
           value={status.no_whatsapp}
           color="text-muted"
+        />
+        <Counter
+          icon={<Ban className="h-4 w-4" />}
+          label="Opt-out"
+          value={status.opt_out ?? 0}
+          color="text-warn"
+          hint="LGPD"
         />
       </div>
 

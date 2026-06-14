@@ -8,6 +8,20 @@
       "when": 1781288682404,
       "tag": "0000_tired_micromacro",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1781438831898,
+      "tag": "0001_fuzzy_landau",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1781440386162,
+      "tag": "0002_slow_vulcan",
+      "breakpoints": true
     }
   ]
 }

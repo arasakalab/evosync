@@ -10,8 +10,8 @@ import {
   Eraser,
   Search,
   Loader2,
-  CheckCircle2,
   AlertTriangle,
+  Hash,
 } from "lucide-react";
 import { toast } from "sonner";
 import Papa from "papaparse";
@@ -41,50 +41,125 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
-import type { Contact } from "@/lib/types";
+import type { Contact, ContactFilters } from "@/lib/types";
 import { cn, onlyDigits } from "@/lib/utils";
+
+import { ContactModeToggle } from "@/components/contact-mode-toggle";
+import { TagChips } from "@/components/tag-chips";
+import { ListChips } from "@/components/list-chips";
+import { BulkActionBar } from "@/components/bulk-action-bar";
+import { OptOutBadge } from "@/components/opt-out-badge";
+import { CreateListDialog } from "@/components/create-list-dialog";
+import { AddTagDialog } from "@/components/add-tag-dialog";
+
+const SELECTION_SYNC_DEBOUNCE_MS = 300;
 
 export default function ContatosPage() {
   const contacts = useAppStore((s) => s.contacts);
   const setContacts = useAppStore((s) => s.setContacts);
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const contactsCount = useAppStore((s) => s.contactsCount);
+  const filteredCount = useAppStore((s) => s.filteredContactsCount);
+  const mode = useAppStore((s) => s.contactsMode);
+  const setMode = useAppStore((s) => s.setContactsMode);
+  const tagFilter = useAppStore((s) => s.contactsTagFilter);
+  const setTagFilter = useAppStore((s) => s.setContactsTagFilter);
+  const listFilter = useAppStore((s) => s.contactsListFilter);
+  const setListFilter = useAppStore((s) => s.setContactsListFilter);
+  const search = useAppStore((s) => s.contactsSearch);
+  const setSearch = useAppStore((s) => s.setContactsSearch);
+
+  const selectedIds = useAppStore((s) => s.selectedIds);
+  const toggleSelected = useAppStore((s) => s.toggleSelected);
+  const selectMany = useAppStore((s) => s.selectMany);
+  const clearSelection = useAppStore((s) => s.clearSelection);
+  const setSelectedIds = useAppStore((s) => s.setSelectedIds);
+  const selectionLoaded = useAppStore((s) => s.selectionLoaded);
+
+  const contactLists = useAppStore((s) => s.contactLists);
+  const setContactLists = useAppStore((s) => s.setContactLists);
+
+  const [importingWa, setImportingWa] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const [importingWa, setImportingWa] = useState(false);
-  const [csvColumns, setCsvColumns] = useState<string[]>([]);
+  const [createListOpen, setCreateListOpen] = useState(false);
+  const [addTagOpen, setAddTagOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Carrega a lista inicial (catálogo) e hidrata listas
   useEffect(() => {
-    setSelected(new Set());
-  }, [contacts.length]);
+    (async () => {
+      try {
+        const r = await api.contacts.list();
+        setContacts(r.contacts, { count: r.count, filteredCount: r.filteredCount });
+      } catch {
+        /* silencioso */
+      }
+      try {
+        const lists = await api.contactLists.list();
+        setContactLists(lists);
+      } catch {
+        /* silencioso */
+      }
+      // Carrega seleção persistida
+      try {
+        const sel = await api.contacts.getSelection();
+        setSelectedIds(sel.ids);
+      } catch {
+        /* silencioso */
+      } finally {
+        useAppStore.getState().setSelectionLoaded(true);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Refetch quando filtros/modo mudam
   useEffect(() => {
-    const cols = new Set<string>(["numero"]);
+    if (!selectionLoaded) return;
+    const filters: ContactFilters = {
+      q: search || undefined,
+      mode: mode === "all" ? undefined : mode,
+      tag: tagFilter || undefined,
+      list: listFilter || undefined,
+    };
+    (async () => {
+      try {
+        const r = await api.contacts.list(filters);
+        setContacts(r.contacts, { count: r.count, filteredCount: r.filteredCount });
+      } catch {
+        /* silencioso */
+      }
+    })();
+  }, [mode, tagFilter, listFilter, search, selectionLoaded, setContacts]);
+
+  // Sincroniza seleção com backend (debounced)
+  useEffect(() => {
+    if (!selectionLoaded) return;
+    const t = setTimeout(() => {
+      api.contacts
+        .setSelection(Array.from(selectedIds))
+        .catch(() => {
+          /* silencioso — seleção é otimista */
+        });
+    }, SELECTION_SYNC_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [selectedIds, selectionLoaded]);
+
+  // Tags derivadas do catálogo (para os chips)
+  const tagFacets = useMemo(() => {
+    const map = new Map<string, number>();
     for (const c of contacts) {
-      for (const k of Object.keys(c.fields || {})) cols.add(k);
+      for (const t of c.tags || []) {
+        map.set(t, (map.get(t) || 0) + 1);
+      }
     }
-    setCsvColumns(Array.from(cols));
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
   }, [contacts]);
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    const digits = onlyDigits(search);
-    if (!term) return contacts;
-    return contacts.filter((c) => {
-      const haystack = [
-        c.number,
-        ...Object.entries(c.fields || {}).flatMap(([k, v]) => [k, v]),
-      ]
-        .join(" ")
-        .toLowerCase();
-      const digitsN = onlyDigits(c.number);
-      if (term && haystack.includes(term)) return true;
-      if (digits && digitsN.includes(digits)) return true;
-      return false;
-    });
-  }, [contacts, search]);
+  const selectedCount = selectedIds.size;
 
   const onImportCsv = async (file: File) => {
     Papa.parse(file, {
@@ -103,9 +178,14 @@ export default function ContatosPage() {
         }
         try {
           const r = await api.contacts.importCsv(rows);
-          const all = await api.contacts.list();
-          setContacts(all.contacts);
-          toast.success(`${r.added} contatos importados (${r.total} no total)`);
+          const fresh = await api.contacts.list();
+          setContacts(fresh.contacts, {
+            count: fresh.count,
+            filteredCount: fresh.filteredCount,
+          });
+          toast.success(
+            `${r.added} adicionados · ${r.updated} atualizados · ${r.skipped} inalterados (total ${r.total})`
+          );
         } catch (e: any) {
           toast.error(e?.message || "Falha ao importar");
         }
@@ -118,10 +198,13 @@ export default function ContatosPage() {
     setImportingWa(true);
     try {
       const r = await api.contacts.importWhatsapp();
-      const all = await api.contacts.list();
-      setContacts(all.contacts);
+      const fresh = await api.contacts.list();
+      setContacts(fresh.contacts, {
+        count: fresh.count,
+        filteredCount: fresh.filteredCount,
+      });
       toast.success(
-        `Total: ${r.found} · Novos: ${r.added} · Já existiam: ${r.existed}`
+        `WhatsApp: ${r.added} novos · ${r.updated} atualizados · ${r.existed} já existiam`
       );
     } catch (e: any) {
       toast.error(e?.message || "Falha ao importar do WhatsApp");
@@ -130,14 +213,19 @@ export default function ContatosPage() {
     }
   };
 
-  const onRemove = async () => {
-    const numbers = Array.from(selected).map((i) => contacts[i].number);
-    if (!numbers.length) return;
+  const onDeleteSelection = async () => {
+    if (!selectedCount) return;
     try {
-      const r = await api.contacts.remove(numbers);
-      const all = await api.contacts.list();
-      setContacts(all.contacts);
-      toast.success(`${r.removed} contato(s) removido(s)`);
+      // PATCH backend remove selection → API por id
+      const ids = Array.from(selectedIds);
+      await Promise.all(ids.map((id) => api.contacts.remove(id).catch(() => null)));
+      clearSelection();
+      const fresh = await api.contacts.list();
+      setContacts(fresh.contacts, {
+        count: fresh.count,
+        filteredCount: fresh.filteredCount,
+      });
+      toast.success(`${ids.length} contato(s) removido(s)`);
     } catch (e: any) {
       toast.error(e?.message || "Falha ao remover");
     } finally {
@@ -148,7 +236,8 @@ export default function ContatosPage() {
   const onClear = async () => {
     try {
       await api.contacts.clear();
-      setContacts([]);
+      clearSelection();
+      setContacts([], { count: 0, filteredCount: 0 });
       toast.success("Lista limpa");
     } catch (e: any) {
       toast.error(e?.message || "Falha ao limpar");
@@ -157,13 +246,84 @@ export default function ContatosPage() {
     }
   };
 
-  const onSelectAll = () => {
-    if (selected.size === filtered.length) setSelected(new Set());
-    else setSelected(new Set(filtered.map((_, i) => contacts.indexOf(_))));
+  const onSelectAllVisible = () => {
+    const ids = contacts.map((c) => c.id);
+    const allSelected = ids.every((id) => selectedIds.has(id));
+    if (allSelected) {
+      // Remove visíveis
+      selectMany(ids, false);
+    } else {
+      // Adiciona visíveis
+      selectMany(ids, true);
+    }
+  };
+
+  const onCreateListFromSelection = async () => {
+    setCreateListOpen(true);
+  };
+
+  const onAddTagToSelection = () => {
+    setAddTagOpen(true);
+  };
+
+  const onToggleOptOut = async (optOut: boolean) => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    // PATCH em paralelo (sem endpoint bulk dedicado; volume razoável aqui)
+    await Promise.all(
+      ids.map((id) =>
+        api.contacts.update(id, { opt_out: optOut }).catch(() => null)
+      )
+    );
+    const fresh = await api.contacts.list();
+    setContacts(fresh.contacts, {
+      count: fresh.count,
+      filteredCount: fresh.filteredCount,
+    });
+    toast.success(
+      optOut
+        ? `${ids.length} marcado(s) como opt-out`
+        : `${ids.length} liberado(s) do opt-out`
+    );
+  };
+
+  // Quando uma lista é criada, já popula com a seleção atual
+  const onListCreated = async (listId: string) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    try {
+      await api.contactLists.addMembers(listId, ids);
+      // Atualiza memberCount
+      const lists = await api.contactLists.list();
+      setContactLists(lists);
+      toast.success(
+        `Lista criada com ${ids.length} contato(s) da seleção`
+      );
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao popular lista");
+    }
+  };
+
+  // Wrapper que abre o diálogo, e ao criar popula com a seleção
+  const [pendingListId, setPendingListId] = useState<string | null>(null);
+  useEffect(() => {
+    if (pendingListId) {
+      onListCreated(pendingListId).finally(() => setPendingListId(null));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactLists, pendingListId]);
+
+  const refreshAfterTag = async () => {
+    const fresh = await api.contacts.list();
+    setContacts(fresh.contacts, {
+      count: fresh.count,
+      filteredCount: fresh.filteredCount,
+    });
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Header + contador inteligente */}
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="section-title flex items-center gap-2">
@@ -171,20 +331,37 @@ export default function ContatosPage() {
             Contatos
           </h1>
           <p className="section-subtitle">
-            Importe listas, puxe contatos da instância ou adicione números manualmente.
+            Catálogo persistente. Selecione quem vai para o próximo disparo.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="secondary" className="text-sm px-3 py-1">
-            {filtered.length === contacts.length
-              ? `${contacts.length} contatos`
-              : `${filtered.length}/${contacts.length} contatos`}
+            {filteredCount === contactsCount
+              ? `${contactsCount} contatos`
+              : `${filteredCount}/${contactsCount} contatos`}
           </Badge>
+          {selectedCount > 0 && (
+            <Badge variant="success" className="text-sm px-3 py-1">
+              {selectedCount} selecionado{selectedCount !== 1 ? "s" : ""}
+            </Badge>
+          )}
+          {contacts.filter((c) => c.opt_out).length > 0 && (
+            <Badge variant="danger" className="text-sm px-3 py-1">
+              {contacts.filter((c) => c.opt_out).length} opt-out
+            </Badge>
+          )}
+          {contactLists.length > 0 && (
+            <Badge variant="muted" className="text-sm px-3 py-1">
+              {contactLists.length} lista{contactLists.length !== 1 ? "s" : ""}
+            </Badge>
+          )}
         </div>
       </header>
 
-      <Card>
-        <CardContent className="pt-6 flex flex-wrap items-center gap-2">
+      {/* Modo de visualização */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <ContactModeToggle />
+        <div className="flex items-center gap-2 flex-wrap">
           <input
             ref={fileInputRef}
             type="file"
@@ -199,7 +376,11 @@ export default function ContatosPage() {
           <Button onClick={() => fileInputRef.current?.click()}>
             <FileUp className="h-4 w-4" /> Importar CSV
           </Button>
-          <Button variant="blue" onClick={onImportWhatsapp} disabled={importingWa}>
+          <Button
+            variant="blue"
+            onClick={onImportWhatsapp}
+            disabled={importingWa}
+          >
             {importingWa ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -211,22 +392,16 @@ export default function ContatosPage() {
             <UserPlus className="h-4 w-4" /> Adicionar
           </Button>
           <Button
-            variant="neutral"
-            disabled={!selected.size}
-            onClick={() => setConfirmRemove(true)}
-          >
-            <Trash2 className="h-4 w-4" /> Remover
-          </Button>
-          <Button
             variant="danger"
-            disabled={!contacts.length}
+            disabled={!contactsCount}
             onClick={() => setConfirmClear(true)}
           >
-            <Eraser className="h-4 w-4" /> Limpar
+            <Eraser className="h-4 w-4" /> Limpar tudo
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
+      {/* Busca */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3">
@@ -251,35 +426,60 @@ export default function ContatosPage() {
         </CardContent>
       </Card>
 
+      {/* Filtros por tag e lista */}
+      {(tagFacets.length > 0 || contactLists.length > 0) && (
+        <div className="space-y-2">
+          <TagChips
+            tags={tagFacets}
+            active={tagFilter}
+            onSelect={setTagFilter}
+          />
+          <ListChips onCreateClick={() => setCreateListOpen(true)} />
+        </div>
+      )}
+
+      {/* Barra de ação em massa */}
+      <BulkActionBar
+        visible={selectedCount > 0}
+        onClearSelection={clearSelection}
+        onCreateListFromSelection={onCreateListFromSelection}
+        onAddTagToSelection={onAddTagToSelection}
+        onToggleOptOut={onToggleOptOut}
+        onDeleteSelection={() => setConfirmRemove(true)}
+      />
+
+      {/* Tabela */}
       <Card>
         <CardContent className="p-0">
           <div className="flex items-center justify-between border-b border-border px-4 py-2.5 text-xs text-muted">
             <div>
-              {contacts.length === 0
+              {contactsCount === 0
                 ? "Nenhum contato carregado. Importe um CSV, busque no WhatsApp ou adicione manualmente."
-                : search
-                ? "Busca aplicada. Selecione uma ou mais linhas filtradas para remover contatos."
-                : "Selecione uma ou mais linhas para remover contatos antes do disparo."}
+                : mode === "selected" && selectedCount === 0
+                ? "Nenhum contato selecionado para envio. Volte ao modo 'Todos' e marque os desejados."
+                : search || tagFilter || listFilter
+                ? "Filtros aplicados. Use a barra de ação em massa ou marque linhas para selecionar."
+                : "Selecione linhas para adicionar à campanha."}
             </div>
-            {contacts.length > 0 && (
+            {contactsCount > 0 && (
               <button
                 className="text-primary hover:underline"
-                onClick={onSelectAll}
+                onClick={onSelectAllVisible}
               >
-                {selected.size === filtered.length && filtered.length > 0
-                  ? "Limpar seleção"
-                  : "Selecionar todos (visíveis)"}
+                {contacts.every((c) => selectedIds.has(c.id)) && contacts.length > 0
+                  ? "Limpar seleção (visíveis)"
+                  : "Selecionar visíveis"}
               </button>
             )}
           </div>
 
-          {filtered.length === 0 ? (
+          {contacts.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted">
               <Users className="h-10 w-10 opacity-40" />
               <p className="text-sm">
-                {contacts.length === 0
+                {contactsCount === 0
                   ? "Sem contatos ainda"
-                  : "Nenhum contato corresponde à busca"}
+                  : "Nenhum contato corresponde ao filtro"}
               </p>
             </div>
           ) : (
@@ -291,41 +491,76 @@ export default function ContatosPage() {
                       <span className="sr-only">Selecionar</span>
                     </th>
                     <th className="px-3 py-2.5 font-semibold">Número</th>
+                    <th className="px-3 py-2.5 font-semibold">Nome</th>
+                    <th className="px-3 py-2.5 font-semibold">Tags</th>
+                    <th className="px-3 py-2.5 font-semibold">Listas</th>
+                    <th className="px-3 py-2.5 font-semibold">Opt-out</th>
                     <th className="px-3 py-2.5 font-semibold">Campos extras</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((c, idx) => {
-                    const realIdx = contacts.indexOf(c);
-                    const isSel = selected.has(realIdx);
+                  {contacts.map((c) => {
+                    const isSel = selectedIds.has(c.id);
                     return (
                       <tr
-                        key={`${c.number}-${realIdx}`}
+                        key={c.id}
                         className={cn(
-                          "border-b border-border/60 transition-colors hover:bg-neutral/30",
-                          isSel && "bg-primary/10"
+                          "border-b border-border/60 transition-colors hover:bg-neutral/30 cursor-pointer",
+                          isSel && "bg-primary/10",
+                          c.opt_out && "opacity-60"
                         )}
-                        onClick={() => {
-                          setSelected((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(realIdx)) next.delete(realIdx);
-                            else next.add(realIdx);
-                            return next;
-                          });
-                        }}
+                        onClick={() => toggleSelected(c.id)}
                       >
                         <td className="px-3 py-2.5">
                           <input
                             type="checkbox"
                             checked={isSel}
-                            onChange={() => {}}
+                            onChange={() => toggleSelected(c.id)}
+                            onClick={(e) => e.stopPropagation()}
                             className="h-4 w-4 rounded border-border bg-[#0d1713] accent-primary"
                           />
                         </td>
                         <td className="px-3 py-2.5 font-mono text-text">
                           {c.number}
                         </td>
-                        <td className="px-3 py-2.5 text-muted">
+                        <td className="px-3 py-2.5 text-text">
+                          {c.name || (
+                            <span className="text-muted/60">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex flex-wrap gap-1">
+                            {(c.tags || []).slice(0, 3).map((t) => (
+                              <span
+                                key={t}
+                                className="inline-flex items-center gap-0.5 rounded bg-panel-alt px-1.5 py-0.5 text-[11px] text-muted"
+                              >
+                                <Hash className="h-2.5 w-2.5" />
+                                {t}
+                              </span>
+                            ))}
+                            {(c.tags || []).length > 3 && (
+                              <span className="text-[11px] text-muted">
+                                +{c.tags.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-muted text-xs">
+                          {(c.lists || []).length > 0
+                            ? (c.lists || [])
+                                .map(
+                                  (id) =>
+                                    contactLists.find((l) => l.id === id)
+                                      ?.name || id.slice(0, 6)
+                                )
+                                .join(", ")
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <OptOutBadge value={!!c.opt_out} />
+                        </td>
+                        <td className="px-3 py-2.5 text-muted text-xs">
                           {Object.entries(c.fields || {})
                             .slice(0, 4)
                             .map(([k, v]) => (
@@ -334,7 +569,9 @@ export default function ContatosPage() {
                                 className="mr-2 inline-flex items-center gap-1"
                               >
                                 <span className="text-muted/70">{k}=</span>
-                                <span className="text-text/90">{v || "—"}</span>
+                                <span className="text-text/90">
+                                  {v || "—"}
+                                </span>
                               </span>
                             ))}
                         </td>
@@ -350,26 +587,51 @@ export default function ContatosPage() {
 
       <p className="text-xs text-muted">
         <AlertTriangle className="inline h-3 w-3 mr-1 -mt-0.5" />
-        Pressione Delete após selecionar linhas para remover rapidamente.
+        Contatos com opt-out são automaticamente pulados em qualquer disparo.
+        Reimportar CSV não reseta opt-out nem tags do operador.
       </p>
 
-      {/* Diálogo: adicionar */}
+      {/* Diálogos */}
       <AddContactDialog
         open={showAdd}
         onOpenChange={setShowAdd}
-        columns={csvColumns}
-        onAdded={(c) => {
-          setContacts([...contacts, c]);
+        onAdded={async () => {
+          const fresh = await api.contacts.list();
+          setContacts(fresh.contacts, {
+            count: fresh.count,
+            filteredCount: fresh.filteredCount,
+          });
         }}
       />
 
-      {/* Confirmação: limpar */}
+      <CreateListDialog
+        open={createListOpen}
+        onOpenChange={(v) => {
+          setCreateListOpen(v);
+          if (!v) {
+            // Ao fechar (após criar), recarrega listas e popula
+            // O upsertContactList já fez. Aqui disparamos onListCreated:
+            const last = useAppStore.getState().contactLists.slice(-1)[0];
+            if (last && useAppStore.getState().selectedIds.size > 0) {
+              setPendingListId(last.id);
+            }
+          }
+        }}
+      />
+
+      <AddTagDialog
+        open={addTagOpen}
+        onOpenChange={setAddTagOpen}
+        contactIds={Array.from(selectedIds)}
+        onApplied={refreshAfterTag}
+      />
+
       <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Limpar contatos</AlertDialogTitle>
             <AlertDialogDescription>
-              Limpar toda a lista de contatos carregada na tela?
+              Limpar toda a lista de contatos? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -384,19 +646,18 @@ export default function ContatosPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Confirmação: remover selecionados */}
       <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remover contatos</AlertDialogTitle>
             <AlertDialogDescription>
-              Remover {selected.size} contato(s) selecionado(s)?
+              Remover {selectedCount} contato(s) selecionado(s)? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={onRemove}
+              onClick={onDeleteSelection}
               className="bg-danger text-white hover:bg-danger-hover"
             >
               Remover
@@ -411,26 +672,26 @@ export default function ContatosPage() {
 function AddContactDialog({
   open,
   onOpenChange,
-  columns,
   onAdded,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  columns: string[];
-  onAdded: (c: Contact) => void;
+  onAdded: () => void;
 }) {
   const [number, setNumber] = useState("");
-  const [extras, setExtras] = useState<Record<string, string>>({});
+  const [name, setName] = useState("");
+  const [tagsText, setTagsText] = useState("");
+  const [optOut, setOptOut] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (open) {
       setNumber("");
-      setExtras({});
+      setName("");
+      setTagsText("");
+      setOptOut(false);
     }
   }, [open]);
-
-  const extraCols = columns.filter((c) => c.toLowerCase() !== "numero");
 
   const onSubmit = async () => {
     if (!number.trim()) {
@@ -439,14 +700,20 @@ function AddContactDialog({
     }
     setSubmitting(true);
     try {
-      const fields: Record<string, string> = {};
-      for (const [k, v] of Object.entries(extras)) {
-        if (v.trim()) fields[k] = v.trim();
-      }
-      const created = await api.contacts.add({ number: number.trim(), fields });
-      onAdded(created);
+      const tags = tagsText
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      await api.contacts.add({
+        number: number.trim(),
+        name: name.trim() || null,
+        fields: {},
+        tags,
+        opt_out: optOut,
+      });
       toast.success("Contato adicionado");
       onOpenChange(false);
+      onAdded();
     } catch (e: any) {
       toast.error(e?.message || "Falha ao adicionar");
     } finally {
@@ -460,10 +727,9 @@ function AddContactDialog({
         <DialogHeader>
           <DialogTitle>Adicionar contato</DialogTitle>
           <DialogDescription>
-            Informe o número e os campos extras opcionais.
+            Adicione um contato manualmente ao catálogo.
           </DialogDescription>
         </DialogHeader>
-
         <div className="space-y-3">
           <div>
             <Label htmlFor="numero">Número com DDD</Label>
@@ -473,30 +739,37 @@ function AddContactDialog({
               onChange={(e) => setNumber(e.target.value)}
               placeholder="5511999990001"
               className="font-mono"
+              autoFocus
             />
           </div>
-          {extraCols.length > 0 && (
-            <>
-              <p className="text-xs text-muted">
-                Campos extras detectados no CSV atual:
-              </p>
-              {extraCols.map((col) => (
-                <div key={col}>
-                  <Label htmlFor={col}>{col}</Label>
-                  <Input
-                    id={col}
-                    value={extras[col] || ""}
-                    onChange={(e) =>
-                      setExtras((p) => ({ ...p, [col]: e.target.value }))
-                    }
-                    placeholder={col}
-                  />
-                </div>
-              ))}
-            </>
-          )}
+          <div>
+            <Label htmlFor="nome">Nome (opcional)</Label>
+            <Input
+              id="nome"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex: João Silva"
+            />
+          </div>
+          <div>
+            <Label htmlFor="tags">Tags (opcional, separadas por vírgula)</Label>
+            <Input
+              id="tags"
+              value={tagsText}
+              onChange={(e) => setTagsText(e.target.value)}
+              placeholder="Ex: vip, lead-quente"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-muted">
+            <input
+              type="checkbox"
+              checked={optOut}
+              onChange={(e) => setOptOut(e.target.checked)}
+              className="h-4 w-4 rounded border-border bg-[#0d1713] accent-primary"
+            />
+            Marcar como opt-out (nunca enviar)
+          </label>
         </div>
-
         <DialogFooter>
           <Button variant="neutral" onClick={() => onOpenChange(false)}>
             Cancelar

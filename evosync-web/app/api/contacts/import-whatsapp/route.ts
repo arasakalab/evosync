@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireTenantId, jsonError } from "@/lib/api-helpers";
 import { loadTenantSettings } from "@/server/store/settings";
 import { EvoClient } from "@/server/evo/client";
-import { addContactsBulk, listContacts } from "@/server/store/contacts";
+import { addContactsBulk } from "@/server/store/contacts";
 import type { Contact } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -10,34 +10,29 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/contacts/import-whatsapp — importa contatos da Evolution API
  * do tenant logado. SaaS Phase 4: escopado por tenantId.
+ *
+ * Retorna: { added, updated, skipped, found, existed }  (FASE 2)
+ *   - added: novos inseridos
+ *   - updated: já existiam e foram atualizados (ex: novo pushName)
+ *   - skipped: já existiam e caller não passou nada novo
+ *   - found: total encontrado na Evolution
+ *   - existed: atalho para `found - added - updated` (não foi alterado)
  */
 export async function POST(_req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-  }
-  if (!session.user.tenantId) {
-    return NextResponse.json(
-      { error: "Super admin não pode importar contatos" },
-      { status: 403 }
-    );
-  }
-  const tenantId = session.user.tenantId;
+  const { error, tenantId } = await requireTenantId("importar contatos");
+  if (error) return error;
 
-  const s = loadTenantSettings(tenantId);
+  const s = loadTenantSettings(tenantId!);
   if (!s.api_key || !s.instance) {
-    return NextResponse.json(
-      { error: "Preencha API Key e Nome da Instância na aba Conexão." },
-      { status: 400 }
+    return jsonError(
+      "Preencha API Key e Nome da Instância na aba Conexão.",
+      400
     );
   }
   const client = new EvoClient(s.url, s.api_key, s.instance);
   const { data, err } = await client.findContactsRaw();
   if (data === null) {
-    return NextResponse.json(
-      { error: `Falha ao buscar contatos: ${err}` },
-      { status: 500 }
-    );
+    return jsonError(`Falha ao buscar contatos: ${err}`, 500);
   }
   const valid: Contact[] = [];
   const seenNums = new Set<string>();
@@ -55,21 +50,35 @@ export async function POST(_req: NextRequest) {
     if (seenNums.has(digits)) continue;
     seenNums.add(digits);
     const name =
-      String(d.pushName || d.verifiedName || "").trim() || "(sem nome)";
-    valid.push({ number: digits, fields: { nome: name } });
+      String(d.pushName || d.verifiedName || "").trim() || null;
+    valid.push({
+      id: "",
+      number: digits,
+      name,
+      tags: [],
+      lists: [],
+      opt_out: false,
+      notes: null,
+      // Mantém compat: nome também em fields.nome para o render de template
+      fields: name ? { nome: name } : {},
+      createdAt: "",
+      updatedAt: "",
+    });
   }
   if (!valid.length) {
-    return NextResponse.json(
-      { error: "Nenhum contato válido encontrado na instância." },
-      { status: 404 }
-    );
+    return jsonError("Nenhum contato válido encontrado na instância.", 404);
   }
 
-  // addContactsBulk já faz upsert com dedup contra existentes
-  const result = addContactsBulk(tenantId, valid);
-  return NextResponse.json({
-    added: result.added,
-    found: valid.length,
-    existed: result.existing,
-  });
+  try {
+    const result = addContactsBulk(tenantId!, valid);
+    return NextResponse.json({
+      added: result.added,
+      updated: result.updated,
+      skipped: result.skipped,
+      found: valid.length,
+      existed: result.skipped,
+    });
+  } catch (e: any) {
+    return jsonError(`Falha ao importar: ${e?.message || e}`, 500);
+  }
 }

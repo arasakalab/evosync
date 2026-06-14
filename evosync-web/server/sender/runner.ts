@@ -57,6 +57,7 @@ function defaultStatus(total: number): SendStatus {
     skipped: 0,
     no_whatsapp: 0,
     invalid: 0,
+    opt_out: 0,
     current_number: "",
     current_index: 0,
     last_message: "",
@@ -217,6 +218,20 @@ export function startRunner(
         if (abortCtl.signal.aborted) break;
         const c = args.contacts[idx];
         status.current_index = idx + 1;
+
+        // FASE 4 (ADR-001): checa opt-out ANTES de validar/enviar.
+        // LGPD/anti-ban: contato com opt_out=true nunca é contactado.
+        if (c.opt_out) {
+          status.current_number = String(c.number);
+          status.error = "";
+          status.stage = "opt_out";
+          status.skipped += 1;
+          status.opt_out += 1;
+          status.pending = Math.max(0, status.pending - 1);
+          onStatus(status);
+          onLog(`-- ${c.number} pulado (opt-out)`, "info");
+          continue;
+        }
 
         const number = normalizeNumberLocal(c.number);
         if (!number) {

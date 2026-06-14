@@ -1,85 +1,100 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { listContacts } from "@/server/store/contacts";
 import { loadTenantSettings } from "@/server/store/settings";
 import { sender } from "@/server/sender/manager";
+import { jsonError, parseJsonBody, requireTenantId, validateWith } from "@/lib/api-helpers";
 import fs from "node:fs";
 import { hub } from "@/server/ws/hub";
+import type { Contact } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+const StartSendSchema = z.object({
+  template: z.string().default(""),
+  mediaPath: z.string().nullable().optional(),
+  mediatype: z.string().default("image"),
+  delayMin: z.number().int().positive().default(8),
+  delayMax: z.number().int().positive().default(25),
+  dailyLimit: z.number().int().positive().default(200),
+  validateFirst: z.boolean().default(true),
+  skipSentHistory: z.boolean().default(true),
+  contactIds: z.array(z.string()).optional(), // FASE 3: subset selecionado
+});
 
 /**
  * POST /api/send/start — inicia disparo manual.
  * SaaS Phase 4: escopado por tenantId da sessão.
+ *
+ * FASE 3: aceita `contactIds?: string[]` no payload. Se presente, filtra
+ * o catálogo pelos IDs (e opt_out=true é checado no SenderRunner por segurança).
  */
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-  }
-  if (!session.user.tenantId) {
-    return NextResponse.json(
-      { error: "Super admin não pode iniciar disparos manuais" },
-      { status: 403 }
-    );
-  }
+  const { error, tenantId } = await requireTenantId("iniciar disparos manuais");
+  if (error) return error;
 
-  let body: any;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Body inválido" }, { status: 400 });
+  const body = await parseJsonBody(req);
+  if (!body.ok) return body.error;
+  const validated = validateWith(StartSendSchema, body.data);
+  if (!validated.ok) return validated.error;
+  const v = validated.data;
+
+  const template = (v.template || "").trim();
+  const mediaPath = v.mediaPath?.trim() || null;
+  const mediatype = v.mediatype || "image";
+  const delayMin = Math.max(1, v.delayMin || 8);
+  const delayMax = Math.max(delayMin, v.delayMax || 25);
+  const dailyLimit = Math.max(1, v.dailyLimit || 200);
+  const validateFirst = v.validateFirst ?? true;
+  const skipSentHistory = v.skipSentHistory ?? true;
+
+  // FASE 3: filtra por contactIds (se fornecido) no SQL. opt_out é
+  // checado adicionalmente no SenderRunner por segurança.
+  const listResult = listContacts(
+    tenantId!,
+    v.contactIds && v.contactIds.length
+      ? { mode: "selected" }
+      : undefined
+  );
+  let contacts: Contact[] = listResult.contacts;
+  if (v.contactIds && v.contactIds.length) {
+    // Filtro extra de segurança: garante intersection exata.
+    const idSet = new Set(v.contactIds);
+    contacts = contacts.filter((c) => idSet.has(c.id));
   }
-
-  const template = String(body.template || "").trim();
-  const mediaPath = String(body.mediaPath || "").trim() || null;
-  const mediatype = String(body.mediatype || "image");
-  const delayMin = Math.max(1, Number(body.delayMin) || 8);
-  const delayMax = Math.max(delayMin, Number(body.delayMax) || 25);
-  const dailyLimit = Math.max(1, Number(body.dailyLimit) || 200);
-  const validateFirst = !!body.validateFirst;
-  const skipSentHistory = body.skipSentHistory !== false;
-
-  const contacts = listContacts(session.user.tenantId);
   if (!contacts.length) {
-    return NextResponse.json(
-      { ok: false, error: "Sem contatos. Importe ou adicione antes de iniciar." },
-      { status: 400 }
+    return jsonError(
+      v.contactIds && v.contactIds.length
+        ? "Nenhum contato selecionado para enviar. Marque contatos na aba Contatos."
+        : "Sem contatos. Importe ou adicione antes de iniciar.",
+      400
     );
   }
   if (!template && !mediaPath) {
-    return NextResponse.json(
-      { ok: false, error: "Digite uma mensagem ou selecione uma mídia antes de iniciar." },
-      { status: 400 }
+    return jsonError(
+      "Digite uma mensagem ou selecione uma mídia antes de iniciar.",
+      400
     );
   }
   if (mediaPath && !fs.existsSync(mediaPath)) {
-    return NextResponse.json(
-      { ok: false, error: `Arquivo de mídia não encontrado: ${mediaPath}` },
-      { status: 400 }
-    );
+    return jsonError(`Arquivo de mídia não encontrado: ${mediaPath}`, 400);
   }
   if (sender.isBusy()) {
-    return NextResponse.json(
-      { ok: false, error: "Já existe um disparo em andamento." },
-      { status: 409 }
-    );
+    return jsonError("Já existe um disparo em andamento.", 409);
   }
 
-  const settings = loadTenantSettings(session.user.tenantId);
+  const settings = loadTenantSettings(tenantId!);
   if (!settings.api_key || !settings.instance) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Preencha API Key e Nome da Instância na aba Conexão.",
-      },
-      { status: 400 }
+    return jsonError(
+      "Preencha API Key e Nome da Instância na aba Conexão.",
+      400
     );
   }
 
   sender.setActiveScheduleId(null);
   const ok = sender.start({
-    tenantId: session.user.tenantId,
+    tenantId: tenantId!,
     url: settings.url,
     apiKey: settings.api_key,
     instance: settings.instance,
@@ -96,10 +111,7 @@ export async function POST(req: NextRequest) {
   });
 
   if (!ok) {
-    return NextResponse.json(
-      { ok: false, error: "Não foi possível iniciar o disparo." },
-      { status: 500 }
-    );
+    return jsonError("Não foi possível iniciar o disparo.", 500);
   }
 
   hub.broadcast({
