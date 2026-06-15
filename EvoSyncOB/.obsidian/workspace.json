@@ -4,21 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "e88acf0727502fa7",
+        "id": "06c2f5b513b14aa3",
         "type": "tabs",
         "children": [
           {
-            "id": "7b515e06d8389f6e",
+            "id": "b755cdfca9788af7",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "01-Arquitetura/Decisoes/ADR-002-Evolution-API-BYOTenant.md",
-                "mode": "source",
-                "source": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "ADR-002-Evolution-API-BYOTenant"
+              "title": "Nova aba"
             }
           }
         ]
@@ -181,8 +177,12 @@
       "bases:Criar nova base": false
     }
   },
-  "active": "7b515e06d8389f6e",
+  "active": "b755cdfca9788af7",
   "lastOpenFiles": [
+    "06-QA/Relatorio-Testes-2026-06-15.md",
+    "06-QA/INDEX.md",
+    "01-Arquitetura/Decisoes/ADR-002-Evolution-API-BYOTenant.md",
+    "06-QA",
     "02-Operacao/Runbook-Onboarding-Tenant-Script.md",
     "02-Operacao/Runbook-Suporte-Diagnostico.md",
     "00-Index/MOC-Raiz.md",
@@ -209,9 +209,6 @@
     "00-Index/Bem-vindo-Legado.md",
     "crie um link.md",
     "Sem título.canvas",
-    "04-Diario/2026-06-14.md",
-    "01-Arquitetura/Modulo-Contatos-Web.md",
-    "01-Arquitetura/Decisoes/ADR-001-Contatos-Organizados.md",
-    "01-Arquitetura/Decisoes/ADR-002-Evolution-API-BYOTenant.md"
+    "04-Diario/2026-06-14.md"
   ]
 }

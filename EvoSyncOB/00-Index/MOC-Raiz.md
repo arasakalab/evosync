@@ -95,6 +95,13 @@ Documentação visual do admin EvoSync v2 (Linear + Vercel minimal, dark default
 - [[Componentes]] — catálogo (StatCard, PageHeader, StatusBadge, EmptyState, ConfirmDialog, CommandPalette, etc.)
 - [[Direcao-Visual]] — referências e decisões de design
 
+## QA & Testes
+
+Relatórios de execução de testes (snapshot datado de cada bateria).
+
+- [[06-QA/INDEX|→ Índice QA]]
+- [[06-QA/Relatorio-Testes-2026-06-15]] — bateria 2026-06-15: typecheck/lint/build OK, 5/5 E2E falham (drift pós-redesign)
+
 ## Tags mais usadas
 
 `#evosync` `#adr` `#arquitetura` `#operacao` `#seguranca` `#desktop` `#web` `#lgpd`

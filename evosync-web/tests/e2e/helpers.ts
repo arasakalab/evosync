@@ -26,8 +26,11 @@ export async function login(
 }
 
 export async function logout(page: Page): Promise<void> {
-  // Procura botão "Sair" no header (LogoutButton)
-  const logoutBtn = page.locator("button:has-text('Sair')").first();
+  // Botão de logout é um <Button size="icon" aria-label="Sair"> com ícone LogOut.
+  // Está presente em:
+  //   - AdminShell (sidebar, user card)
+  //   - Layout do operador (header topbar)
+  const logoutBtn = page.locator('button[aria-label="Sair"]').first();
   if (await logoutBtn.isVisible({ timeout: 1_000 }).catch(() => false)) {
     await logoutBtn.click();
     await page.waitForURL(/\/admin\/login/, { timeout: 5_000 }).catch(() => {});
@@ -68,14 +71,14 @@ export async function waitForContactsCount(
   page: Page,
   expected: number
 ): Promise<void> {
+  // Poll o badge do header até o count bater.
+  // Lê "X contatos" ou "X/Y contatos" (modo com filtro) e extrai o número.
   await expect
     .poll(
       async () => {
-        const txt = await page
-          .locator("text=/\\d+\\s+contatos?/")
-          .first()
-          .textContent();
-        const m = txt?.match(/(\d+)/);
+        const badge = page.locator("span", { hasText: /contatos/ }).first();
+        const txt = (await badge.textContent()) ?? "";
+        const m = txt.match(/(\d+)/);
         return m ? Number(m[1]) : -1;
       },
       { timeout: 15_000 }
@@ -83,15 +86,83 @@ export async function waitForContactsCount(
     .toBe(expected);
 }
 
+/**
+ * Espera o badge "X selecionado(s)" do header mostrar o valor esperado.
+ */
+export async function waitForSelectionCount(
+  page: Page,
+  expected: number
+): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const badge = page
+          .locator("span", { hasText: /selecionado/ })
+          .first();
+        const txt = (await badge.textContent()) ?? "";
+        const m = txt.match(/(\d+)/);
+        return m ? Number(m[1]) : -1;
+      },
+      { timeout: 10_000 }
+    )
+    .toBe(expected);
+}
+
+/**
+ * Espera o badge "X opt-out" do header mostrar o valor esperado.
+ */
+export async function waitForOptOutCount(
+  page: Page,
+  expected: number
+): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const badge = page.locator("span", { hasText: /opt-out/ }).first();
+        const txt = (await badge.textContent()) ?? "";
+        const m = txt.match(/(\d+)/);
+        return m ? Number(m[1]) : -1;
+      },
+      { timeout: 10_000 }
+    )
+    .toBe(expected);
+}
+
 export async function clearAllContacts(page: Page): Promise<void> {
-  await page.locator("button:has-text('Limpar tudo')").first().click();
-  await page
-    .locator('[role="alertdialog"], [role="dialog"]')
-    .filter({ hasText: "Limpar contatos" })
-    .locator("button:has-text('Limpar tudo')")
-    .last()
-    .click();
-  await page.waitForTimeout(500);
+  // Estratégia: chama as APIs diretamente via page.request (mais confiável
+  // que UI clicks em testes E2E que dependem de animações e estado do
+  // shadcn/ui). page.request compartilha os cookies da page (autenticação).
+  //
+  // Vantagens sobre a abordagem de UI clicks:
+  // - Sem dependência em animações do AlertDialog
+  // - Sem race conditions com debounce da seleção
+  // - Funciona mesmo se houver outros dialogs abertos de runs anteriores
+  try {
+    await page.request.post("/api/contacts/clear");
+  } catch {
+    /* ignora — pode falhar se não autenticado, mas o test já fez login */
+  }
+  // Limpar seleção persistida (a seleção do tenant pode ter IDs órfãos
+  // de runs anteriores)
+  try {
+    await page.request.put("/api/contacts/selection", {
+      data: { ids: [] },
+    });
+  } catch {
+    /* idem */
+  }
+  // Espera o count ir pra 0 (polling do badge)
+  await expect
+    .poll(
+      async () => {
+        const badge = page.locator("span", { hasText: "contatos" }).first();
+        const txt = (await badge.textContent()) ?? "";
+        const m = txt.match(/(\d+)/);
+        return m ? Number(m[1]) : -1;
+      },
+      { timeout: 10_000 }
+    )
+    .toBe(0);
 }
 
 /**

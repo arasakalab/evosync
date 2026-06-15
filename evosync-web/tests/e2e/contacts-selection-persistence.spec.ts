@@ -6,6 +6,8 @@ import {
   importCsvInline,
   clearAllContacts,
   selectFirstN,
+  waitForContactsCount,
+  waitForSelectionCount,
 } from "./helpers";
 
 /**
@@ -28,15 +30,11 @@ test.describe("Persistência da seleção entre reloads", () => {
       nome: `User ${i}`,
     }));
     await importCsvInline(page, rows);
-    await expect(page.locator("text=/10\\s+contatos?/")).toBeVisible({
-      timeout: 15_000,
-    });
+    await waitForContactsCount(page, 10);
 
     // 2. Selecionar 5 primeiros
     await selectFirstN(page, 5);
-    await expect(page.locator("text=/5\\s+selecionados?/")).toBeVisible({
-      timeout: 5_000,
-    });
+    await waitForSelectionCount(page, 5);
 
     // 3. Esperar debounce de 300ms + sync
     await page.waitForTimeout(1_500);
@@ -45,9 +43,7 @@ test.describe("Persistência da seleção entre reloads", () => {
     await page.reload();
 
     // 5. Conferir que os 5 continuam selecionados
-    await expect(
-      page.locator("text=/5\\s+selecionados?/")
-    ).toBeVisible({ timeout: 10_000 });
+    await waitForSelectionCount(page, 5);
 
     // 6. Conferir que os 5 primeiros checkboxes estão marcados
     const checkboxes = page.locator('tbody input[type="checkbox"]');

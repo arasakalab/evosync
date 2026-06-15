@@ -6,6 +6,9 @@ import {
   importCsvInline,
   clearAllContacts,
   selectFirstN,
+  waitForContactsCount,
+  waitForSelectionCount,
+  waitForOptOutCount,
 } from "./helpers";
 
 /**
@@ -30,28 +33,26 @@ test.describe("Organizar contatos (importar + lista + tag + opt-out)", () => {
       { numero: "5511999990003", nome: "Carol", empresa: "Initech" },
     ]);
 
-    // Espera 3 contatos aparecerem
-    await expect(page.locator("text=/3\\s+contatos?/")).toBeVisible({
-      timeout: 15_000,
-    });
+    // Espera 3 contatos aparecerem (polling)
+    await waitForContactsCount(page, 3);
 
     // 2. Selecionar todos e abrir diálogo "Criar lista"
     await selectFirstN(page, 2); // Alice + Bob
-    await expect(
-      page.locator("text=/2\\s+selecionados?/")
-    ).toBeVisible({ timeout: 5_000 });
+    await waitForSelectionCount(page, 2);
 
+    // Clica no botão "Criar lista" da barra de ação em massa
+    // (a barra tem 1 botão "Criar lista" — abre o dialog)
     await page
       .locator("button:has-text('Criar lista')")
       .first()
       .click();
 
-    // 3. Preencher nome e confirmar
-    await page
-      .locator('input#list-name')
-      .fill("VIP");
-    await page
-      .locator("dialog button:has-text('Criar lista')")
+    // 3. Preencher nome e confirmar (escopo pelo dialog shadcn)
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible();
+    await dialog.locator('input#list-name').fill("VIP");
+    await dialog
+      .locator('button:has-text("Criar lista")')
       .last()
       .click();
 
@@ -62,11 +63,10 @@ test.describe("Organizar contatos (importar + lista + tag + opt-out)", () => {
 
     // 4. Adicionar tag aos selecionados (Alice + Bob)
     await page.locator("button:has-text('Tag')").first().click();
-    await page.locator('input#tag-name').fill("promo");
-    await page
-      .locator("dialog button:has-text('Aplicar')")
-      .last()
-      .click();
+    const tagDialog = page.locator('[role="dialog"]');
+    await expect(tagDialog).toBeVisible();
+    await tagDialog.locator('input#tag-name').fill("promo");
+    await tagDialog.locator('button:has-text("Aplicar")').click();
 
     // 5. Limpar seleção e selecionar só Carol
     await page.locator("button:has-text('Limpar seleção')").click();
@@ -75,9 +75,7 @@ test.describe("Organizar contatos (importar + lista + tag + opt-out)", () => {
     // Localiza a linha do Carol (única sem tag) e seleciona
     const carolRow = page.locator("tr", { hasText: "5511999990003" }).first();
     await carolRow.click();
-    await expect(
-      page.locator("text=/1\\s+selecionado\\b/")
-    ).toBeVisible({ timeout: 5_000 });
+    await waitForSelectionCount(page, 1);
 
     // 6. Marcar Carol como opt-out
     await page.locator("button:has-text('Marcar opt-out')").click();
@@ -88,6 +86,6 @@ test.describe("Organizar contatos (importar + lista + tag + opt-out)", () => {
     await expect(carolOptOutBadge).toBeVisible({ timeout: 5_000 });
 
     // 8. Conferir: o contador "1 opt-out" aparece no header
-    await expect(page.locator("text=/1\\s+opt-out/")).toBeVisible();
+    await waitForOptOutCount(page, 1);
   });
 });

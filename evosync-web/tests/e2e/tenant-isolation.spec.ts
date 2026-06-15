@@ -6,6 +6,7 @@ import {
   importCsvInline,
   clearAllContacts,
   logout,
+  waitForContactsCount,
 } from "./helpers";
 
 /**
@@ -25,9 +26,7 @@ test.describe("Isolamento multi-tenant", () => {
       nome: `TenantA ${i}`,
     }));
     await importCsvInline(page, rowsA);
-    await expect(page.locator("text=/5\\s+contatos?/")).toBeVisible({
-      timeout: 15_000,
-    });
+    await waitForContactsCount(page, 5);
 
     // 2. Logout
     await logout(page);
@@ -42,9 +41,7 @@ test.describe("Isolamento multi-tenant", () => {
       nome: `TenantB ${i}`,
     }));
     await importCsvInline(page, rowsB);
-    await expect(page.locator("text=/5\\s+contatos?/")).toBeVisible({
-      timeout: 15_000,
-    });
+    await waitForContactsCount(page, 5);
 
     // Conferir: Tenant B vê apenas seus 5 contatos
     for (const r of rowsB) {
@@ -70,7 +67,6 @@ test.describe("Isolamento multi-tenant", () => {
 
   test("Tenant A não consegue ler contato do Tenant B via API direta", async ({
     page,
-    request,
   }) => {
     // Login como Tenant A, importa 1 contato
     await login(page, E2E_USERS.tenant1);
@@ -79,12 +75,11 @@ test.describe("Isolamento multi-tenant", () => {
     await importCsvInline(page, [
       { numero: "5511AONLY01", nome: "Only A" },
     ]);
-    await expect(page.locator("text=/1\\s+contato/")).toBeVisible({
-      timeout: 15_000,
-    });
+    await waitForContactsCount(page, 1);
 
-    // Pega o id via list
-    const listA = await request.get("/api/contacts");
+    // Pega o id via list (usar page.request, não request fixture — fixture
+    // não compartilha cookies com a page)
+    const listA = await page.request.get("/api/contacts");
     expect(listA.ok()).toBeTruthy();
     const dataA = await listA.json();
     expect(dataA.contacts.length).toBe(1);
@@ -95,17 +90,17 @@ test.describe("Isolamento multi-tenant", () => {
     await login(page, E2E_USERS.tenant2);
 
     // Tenant B tenta GET /api/contacts/:id com id do Tenant A → 404
-    const res = await request.get(`/api/contacts/${contactIdA}`);
+    const res = await page.request.get(`/api/contacts/${contactIdA}`);
     expect(res.status()).toBe(404);
 
     // Tenant B tenta PATCH /api/contacts/:id do Tenant A → 404
-    const patch = await request.patch(`/api/contacts/${contactIdA}`, {
+    const patch = await page.request.patch(`/api/contacts/${contactIdA}`, {
       data: { name: "hacked" },
     });
     expect(patch.status()).toBe(404);
 
     // Tenant B tenta DELETE /api/contacts/:id do Tenant A → 404
-    const del = await request.delete(`/api/contacts/${contactIdA}`);
+    const del = await page.request.delete(`/api/contacts/${contactIdA}`);
     expect(del.status()).toBe(404);
   });
 });

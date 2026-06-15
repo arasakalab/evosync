@@ -33,3 +33,7 @@ tsconfig.tsbuildinfo
 
 # Logs
 logs/
+
+# Playwright artifacts
+test-results/
+playwright-report/
