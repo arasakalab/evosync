@@ -11,10 +11,14 @@
             "id": "7b515e06d8389f6e",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Visualização em gráfico"
+              "type": "markdown",
+              "state": {
+                "file": "01-Arquitetura/Decisoes/ADR-002-Evolution-API-BYOTenant.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "ADR-002-Evolution-API-BYOTenant"
             }
           }
         ]
@@ -179,16 +183,26 @@
   },
   "active": "7b515e06d8389f6e",
   "lastOpenFiles": [
-    "05-Design-System/Design-System-v2.md",
-    "05-Design-System/Direcao-Visual.md",
-    "05-Design-System/Componentes.md",
-    "05-Design-System/Design-Tokens.md",
-    "05-Design-System",
-    "00-Index/MOC-Raiz.md",
-    "MOC.md",
-    "02-Operacao/Seguranca.md",
-    "03-Negocios/Guia-Cliente-Primeiros-Passos.md",
+    "02-Operacao/Runbook-Onboarding-Tenant-Script.md",
     "02-Operacao/Runbook-Suporte-Diagnostico.md",
+    "00-Index/MOC-Raiz.md",
+    "02-Operacao/Runbook-Restaurar-Banco.md",
+    "03-Negocios/Guia-Cliente-Primeiros-Passos.md",
+    "02-Operacao/Runbook-Backup-Banco.md",
+    "02-Operacao/Seguranca.md",
+    "ADR-NNN-titulo.md",
+    "99-Templates/Template-ADR.md",
+    "02-Operacao/Runbook-Reset-Banco.md",
+    "00-Index/MOC-App-Desktop.md",
+    "Sem título 1.base",
+    "Sem título.base",
+    "00-Index/MOC-SaaS-Web.md",
+    "05-Design-System/Direcao-Visual.md",
+    "05-Design-System/Design-Tokens.md",
+    "05-Design-System/Design-System-v2.md",
+    "05-Design-System/Componentes.md",
+    "05-Design-System",
+    "MOC.md",
     "02-Operacao/Runbook-Cobranca-Licenca.md",
     "02-Operacao/Runbook-Onboarding-Cliente.md",
     "01-Arquitetura/Decisoes/ADR-004-Modelo-SaaS-Hospedado.md",
@@ -196,11 +210,8 @@
     "crie um link.md",
     "Sem título.canvas",
     "04-Diario/2026-06-14.md",
-    "99-Templates/Template-ADR.md",
-    "00-Index/MOC-SaaS-Web.md",
     "01-Arquitetura/Modulo-Contatos-Web.md",
     "01-Arquitetura/Decisoes/ADR-001-Contatos-Organizados.md",
-    "01-Arquitetura/Decisoes/ADR-002-Evolution-API-BYOTenant.md",
-    "Bem-vindo.md"
+    "01-Arquitetura/Decisoes/ADR-002-Evolution-API-BYOTenant.md"
   ]
 }

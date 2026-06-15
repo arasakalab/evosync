@@ -51,6 +51,43 @@ function getSqlite(): Database.Database {
   return globalThis.__evosync_sqlite;
 }
 
+/**
+ * Retorna a conexão SQLite bruta (better-sqlite3).
+ * Útil para operações de baixo nível como backup via `db.backup()`.
+ * NÃO use para queries — prefira `getDb()` (Drizzle).
+ */
+export function getRawSqlite(): Database.Database {
+  return getSqlite();
+}
+
+/** Retorna o caminho do arquivo SQLite atual. */
+export function getDbFilePath(): string {
+  return getDbPath();
+}
+
+/**
+ * Fecha a conexão SQLite atual e limpa o cache singleton.
+ *
+ * ⚠️  CUIDADO: use apenas em casos extremos (ex: após restaurar um backup
+ *     de banco). Após chamar, a próxima chamada a `getDb()` re-abre a
+ *     conexão apontando para o MESMO arquivo no disco. Se o arquivo foi
+ *     substituído no meio tempo, a nova conexão lê os dados novos.
+ *
+ * Não é seguro chamar com queries em voo — todas as conexões ativas
+ * verão erro "database is closed".
+ */
+export function resetDb(): void {
+  if (globalThis.__evosync_sqlite) {
+    try {
+      globalThis.__evosync_sqlite.close();
+    } catch {
+      /* ignore */
+    }
+  }
+  globalThis.__evosync_db = undefined;
+  globalThis.__evosync_sqlite = undefined;
+}
+
 export function getDb() {
   if (!globalThis.__evosync_db) {
     const sqlite = getSqlite();

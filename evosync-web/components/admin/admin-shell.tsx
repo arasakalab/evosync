@@ -10,6 +10,7 @@ import {
   UserPlus,
   Users,
   ScrollText,
+  Settings,
   LogOut,
   type LucideIcon,
 } from "lucide-react";
@@ -49,6 +50,7 @@ const NAV: NavItem[] = [
   { href: "/admin/invites", label: "Convites", icon: UserPlus, badge: "pendingInvites", description: "Convites pendentes" },
   { href: "/admin/users", label: "Usuários", icon: Users, description: "Todos os usuários" },
   { href: "/admin/audit", label: "Auditoria", icon: ScrollText, description: "Log de ações" },
+  { href: "/admin/settings", label: "Configurações", icon: Settings, description: "Preferências e zona de perigo" },
 ];
 
 export default function AdminShell({ user, stats, children }: AdminShellProps) {

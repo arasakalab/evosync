@@ -66,9 +66,13 @@ O repositório contém **dois apps** que coexistem:
 
 ### Para você (SaaS provider / super_admin)
 
-- [[Runbook-Onboarding-Cliente]] — como provisionar um cliente novo (~15-20 min)
+- [[Runbook-Onboarding-Cliente]] — como provisionar um cliente novo (passo a passo completo)
+- [[Runbook-Onboarding-Tenant-Script]] — **caminho rápido**: `bash onboard-tenant.sh <slug>` (~30s)
 - [[Runbook-Cobranca-Licenca]] — ciclo de mensalidade, renovar, suspender
 - [[Runbook-Suporte-Diagnostico]] — quando o cliente reclama
+- [[Runbook-Reset-Banco]] — zerar banco (Zona de perigo, com backup)
+- [[Runbook-Backup-Banco]] — baixar snapshot do SQLite para o PC
+- [[Runbook-Restaurar-Banco]] — restaurar banco a partir de um .db (upload)
 
 ### Para o cliente (B2B leigo)
 

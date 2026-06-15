@@ -11,7 +11,26 @@ tempo-estimado: 15-20min
 
 > **Quem usa:** você (super_admin do EvoSync).
 > **Quando:** um novo cliente te contrata (WhatsApp, e-mail, formulário).
-> **Objetivo:** entregar pro cliente o app + Evolution API dele funcionando, em ~15-20 min.
+> **Objetivo:** entregar pro cliente o app + Evolution API dele funcionando.
+
+## TL;DR (caminho rápido)
+
+> **Há um script que faz TUDO de uma vez.** Use ele:
+>
+> ```bash
+> ssh root@app.evosync.com.br
+> bash /opt/evosync/installer/onboard-tenant.sh acme
+> ```
+>
+> Tempo: ~30s (+ ~5min se for criar TLS). Detalhes completos em
+> [[Runbook-Onboarding-Tenant-Script]]. Depois do script rodar, siga
+> apenas os passos C, E, F, G abaixo (criar tenant no EvoSync, emitir
+> invite, mandar mensagem, validar).
+
+## TL;DR (procedimento manual)
+
+Se não puder usar o script (ex: VPS local de dev), siga o procedimento
+passo-a-passo abaixo. Tempo: **~15-20 min**.
 
 ## Pré-requisitos
 
