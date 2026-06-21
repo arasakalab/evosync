@@ -32,6 +32,7 @@ EVOLUTION_PORT_BASE="${EVOLUTION_PORT_BASE:-8081}"
 MAX_PORT="${MAX_PORT:-8199}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-disparofacil_postgres}"
 POSTGRES_USER="${POSTGRES_USER:-evolution}"
+REDIS_CONTAINER="${REDIS_CONTAINER:-disparofacil_redis}"
 EVOLUTION_NETWORK="${EVOLUTION_NETWORK:-evolution-shared}"
 EVOLUTION_IMAGE="${EVOLUTION_IMAGE:-evoapicloud/evolution-api:latest}"
 DOMAIN_BASE="${DOMAIN_BASE:-evosync.com.br}"
@@ -86,6 +87,7 @@ Variáveis de ambiente (opcional):
   SERVER_IP              IP do VPS p/ fallback se não usar subdomínio
   POSTGRES_CONTAINER     Container do Postgres (default: disparofacil_postgres)
   POSTGRES_USER          User do Postgres (default: evolution)
+  REDIS_CONTAINER        Container do Redis (default: disparofacil_redis)
   MAX_PORT               Última porta possível (default: 8199)
 
 Exemplos:
@@ -154,10 +156,11 @@ if docker ps -a --format '{{.Names}}' | grep -q "^evo_${SLUG}$"; then
   fail "Container 'evo_${SLUG}' já existe. Abortando para não sobrescrever.\n   Para recriar: docker rm -f evo_${SLUG} e rode novamente (CUIDADO)."
 fi
 
+DB_NAME="evo_$(echo "$SLUG" | tr '-' '_')"
 DB_EXISTS=$(docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -tAc \
-  "SELECT 1 FROM pg_database WHERE datname='evo_${SLUG}'" 2>/dev/null || echo "")
+  "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" 2>/dev/null || echo "")
 if [ "$DB_EXISTS" = "1" ]; then
-  fail "Database 'evo_${SLUG}' já existe no Postgres. Escolha outro slug ou faça drop manual."
+  fail "Database '$DB_NAME' já existe no Postgres. Escolha outro slug ou faça drop manual."
 fi
 
 ok "Slug '$SLUG' validado e livre"
@@ -215,12 +218,54 @@ fi
   "Não consegui descobrir a senha do Postgres.\n   Defina POSTGRES_PASSWORD como env var ou garanta que está em /opt/evosync/infra/evolution/.env"
 ok "Senha do Postgres obtida"
 
+# === HOSTNAME DO POSTGRES (alias DNS dentro do network) ===
+# O nome do container no compose pode ser `disparofacil_postgres`, `postgres`,
+# etc. Dentro de uma network Docker, o alias DNS é o **nome do container**.
+# Mas se houver um alias custom (ex: networks: aliases: ['postgres']), o
+# hostname será esse alias. Aqui detectamos dinamicamente.
+POSTGRES_HOST="$POSTGRES_CONTAINER"
+# Confere se o hostname funciona via container de teste descartável
+if ! docker run --rm --network "$EVOLUTION_NETWORK" \
+     --name "evo_test_dns_probe_$$" \
+     alpine:latest nc -z -w 2 "$POSTGRES_CONTAINER" 5432 2>/dev/null; then
+  # Fallback: tenta com o nome "postgres" (alias comum em compose)
+  if docker run --rm --network "$EVOLUTION_NETWORK" \
+       --name "evo_test_dns_probe_$$" \
+       alpine:latest nc -z -w 2 postgres 5432 2>/dev/null; then
+    POSTGRES_HOST="postgres"
+    info "Alias 'postgres' encontrado no network (alias do compose)"
+  else
+    fail "Não consigo resolver o Postgres. Verifique network '$EVOLUTION_NETWORK' e o container '$POSTGRES_CONTAINER'."
+  fi
+fi
+ok "Postgres acessível como '$POSTGRES_HOST:5432'"
+
+# === HOSTNAME DO REDIS (mesma lógica do Postgres) ===
+REDIS_HOST="$REDIS_CONTAINER"
+if ! docker run --rm --network "$EVOLUTION_NETWORK" \
+     --name "evo_test_redis_probe_$$" \
+     alpine:latest nc -z -w 2 "$REDIS_CONTAINER" 6379 2>/dev/null; then
+  if docker run --rm --network "$EVOLUTION_NETWORK" \
+       --name "evo_test_redis_probe_$$" \
+       alpine:latest nc -z -w 2 redis 6379 2>/dev/null; then
+    REDIS_HOST="redis"
+    info "Alias 'redis' encontrado no network (alias do compose)"
+  else
+    fail "Não consigo resolver o Redis. Verifique network '$EVOLUTION_NETWORK' e o container '$REDIS_CONTAINER'."
+  fi
+fi
+ok "Redis acessível como '$REDIS_HOST:6379'"
+
 # === CRIAR DATABASE ===
 section "Criando database no Postgres"
 
-docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -c \
-  "CREATE DATABASE evo_${SLUG};" 2>&1 | grep -v "^CREATE DATABASE" || true
-ok "Database 'evo_${SLUG}' criado"
+# Cria e verifica explicitamente
+CREATE_OUTPUT=$(docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -c \
+  "CREATE DATABASE \"$DB_NAME\";" 2>&1)
+if ! echo "$CREATE_OUTPUT" | grep -qE "CREATE DATABASE"; then
+  fail "Falha ao criar database '$DB_NAME' (verifique caracteres do slug):\n$CREATE_OUTPUT"
+fi
+ok "Database '$DB_NAME' criado"
 
 # === SUBIR CONTAINER EVOLUTION ===
 section "Subindo container Evolution"
@@ -234,7 +279,7 @@ docker run -d \
   -e AUTHENTICATION_API_KEY="${API_KEY}" \
   -e DATABASE_ENABLED=true \
   -e DATABASE_PROVIDER=postgresql \
-  -e DATABASE_CONNECTION_URI="postgresql://${POSTGRES_USER}:${PG_PASS}@postgres:5432/evo_${SLUG}" \
+  -e DATABASE_CONNECTION_URI="postgresql://${POSTGRES_USER}:${PG_PASS}@${POSTGRES_HOST}:5432/${DB_NAME}" \
   -e DATABASE_SAVE_DATA_INSTANCE=true \
   -e DATABASE_SAVE_DATA_NEW_MESSAGE=true \
   -e DATABASE_SAVE_MESSAGE_UPDATE=true \
@@ -243,7 +288,7 @@ docker run -d \
   -e DATABASE_SAVE_DATA_LABELS=true \
   -e DATABASE_SAVE_DATA_HISTORIC=true \
   -e CACHE_REDIS_ENABLED=true \
-  -e CACHE_REDIS_URI="redis://redis:6379/1" \
+  -e CACHE_REDIS_URI="redis://${REDIS_HOST}:6379/1" \
   -e CACHE_REDIS_PREFIX_KEY="evo_${SLUG}_v2" \
   -v "evo_${SLUG}_instances:/evolution/instances" \
   "$EVOLUTION_IMAGE" >/dev/null
@@ -328,7 +373,7 @@ if [ "$NO_LOG" = "0" ]; then
     echo "Porta:   $PORT"
     echo "Domain:  ${DOMAIN:-<sem subdomínio>}"
     echo "API Key: $API_KEY"
-    echo "DB:      evo_${SLUG}"
+    echo "DB:      $DB_NAME"
     echo "Container: evo_${SLUG}"
     echo ""
   } >> "$KEYS_LOG"
@@ -348,7 +393,7 @@ ${C_BOLD}===============================================================${C_RESE
   ${C_BOLD}URL:${C_RESET}        ${FINAL_URL}
   ${C_BOLD}API Key:${C_RESET}    ${API_KEY}
   ${C_BOLD}Porta:${C_RESET}      ${PORT}
-  ${C_BOLD}Database:${C_RESET}   evo_${SLUG}
+  ${C_BOLD}Database:${C_RESET}   ${DB_NAME}
   ${C_BOLD}Container:${C_RESET}  evo_${SLUG}
   ${C_BOLD}Mapeamento:${C_RESET} ${KEYS_LOG}
 

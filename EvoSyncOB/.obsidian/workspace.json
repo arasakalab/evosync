@@ -4,17 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "06c2f5b513b14aa3",
+        "id": "daf931470c9340d6",
         "type": "tabs",
         "children": [
           {
-            "id": "b755cdfca9788af7",
+            "id": "2d8bd6190e87e546",
             "type": "leaf",
             "state": {
-              "type": "empty",
+              "type": "graph",
               "state": {},
-              "icon": "lucide-file",
-              "title": "Nova aba"
+              "icon": "lucide-git-fork",
+              "title": "Visualização em gráfico"
             }
           }
         ]
@@ -177,8 +177,9 @@
       "bases:Criar nova base": false
     }
   },
-  "active": "b755cdfca9788af7",
+  "active": "2d8bd6190e87e546",
   "lastOpenFiles": [
+    "02-Operacao/Guia-Instalacao-Completa.md",
     "06-QA/Relatorio-Testes-2026-06-15.md",
     "06-QA/INDEX.md",
     "01-Arquitetura/Decisoes/ADR-002-Evolution-API-BYOTenant.md",
@@ -208,7 +209,6 @@
     "01-Arquitetura/Decisoes/ADR-004-Modelo-SaaS-Hospedado.md",
     "00-Index/Bem-vindo-Legado.md",
     "crie um link.md",
-    "Sem título.canvas",
-    "04-Diario/2026-06-14.md"
+    "Sem título.canvas"
   ]
 }

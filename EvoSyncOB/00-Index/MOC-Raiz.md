@@ -66,6 +66,7 @@ O repositório contém **dois apps** que coexistem:
 
 ### Para você (SaaS provider / super_admin)
 
+- [[02-Operacao/Guia-Instalacao-Completa]] — **master guide**: setup do VPS ao primeiro cliente disparando
 - [[Runbook-Onboarding-Cliente]] — como provisionar um cliente novo (passo a passo completo)
 - [[Runbook-Onboarding-Tenant-Script]] — **caminho rápido**: `bash onboard-tenant.sh <slug>` (~30s)
 - [[Runbook-Cobranca-Licenca]] — ciclo de mensalidade, renovar, suspender

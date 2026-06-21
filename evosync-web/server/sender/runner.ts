@@ -214,6 +214,75 @@ export function startRunner(
         onStatus(status);
       }
 
+      // Pré-checagem da instância WhatsApp (uma vez antes do loop).
+      // Se não estiver "open", tenta reconectar/esperar algumas vezes
+      // antes de abortar o envio inteiro. Evita perder 1 round de delay
+      // por contato quando a instância está close.
+      status.stage = "connecting";
+      onStatus(status);
+      onLog("... verificando estado da instância WhatsApp", "info");
+      {
+        const MAX_RETRIES = 5;
+        const RETRY_DELAY_MS = 15_000;
+        let instState: string | null = null;
+        let instErr = "";
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          if (abortCtl.signal.aborted) break;
+          const r = await client.connectionState();
+          instState = r.state;
+          instErr = r.err;
+          if (
+            instState &&
+            ["open", "connected", "online"].includes(
+              String(instState).toLowerCase()
+            )
+          ) {
+            onLog(`✓ instância ${instState} (tentativa ${attempt})`, "ok");
+            break;
+          }
+          // Erros fatais: aborta imediatamente
+          if (instState === null && instErr) {
+            if (
+              instErr.includes("instance does not exist") ||
+              instErr.includes("404") ||
+              instErr.includes("401") ||
+              instErr.includes("403")
+            ) {
+              status.error = `Instância indisponível: ${instErr}. Abortando envio.`;
+              onStatus(status);
+              onLog(`!! ${status.error}`, "error");
+              status.pending = 0;
+              abortCtl.abort();
+              break;
+            }
+          }
+          if (attempt < MAX_RETRIES) {
+            onLog(
+              `… instância ${instState ?? "?"} ainda não está open; aguardando ${RETRY_DELAY_MS / 1000}s (${attempt}/${MAX_RETRIES})`,
+              "warn"
+            );
+            if (
+              await sleepInterruptible(RETRY_DELAY_MS, abortCtl.signal, () => pauseFlag)
+            ) {
+              break;
+            }
+          }
+        }
+        if (!abortCtl.signal.aborted) {
+          const ok = instState &&
+            ["open", "connected", "online"].includes(
+              String(instState).toLowerCase()
+            );
+          if (!ok) {
+            status.error = `Instância ${instState ?? "?"} não ficou open após ${MAX_RETRIES} tentativas. Abortando envio.`;
+            onStatus(status);
+            onLog(`!! ${status.error}`, "error");
+            status.pending = 0;
+            abortCtl.abort();
+          }
+        }
+      }
+
       for (let idx = 0; idx < args.contacts.length; idx++) {
         if (abortCtl.signal.aborted) break;
         const c = args.contacts[idx];
@@ -285,45 +354,12 @@ export function startRunner(
           if (abortCtl.signal.aborted) break;
         }
 
-        // checa conexão
+        // checa conexão (instância já validada antes do loop;
+        // se chegar aqui, podemos enviar)
         status.stage = "connecting";
         status.last_message = renderTemplate(c, args.template).slice(0, 120);
         onStatus(status);
-        onLog(`... verificando conexão para ${number}`, "info");
-        const { state, err: cerr } = await client.connectionState();
-        if (state === null && cerr) {
-          if (
-            cerr.includes("instance does not exist") ||
-            cerr.includes("404") ||
-            cerr.includes("401") ||
-            cerr.includes("403")
-          ) {
-            status.error = `Instância indisponível: ${cerr}. Abortando envio.`;
-            onStatus(status);
-            onLog(`!! ${status.error}`, "error");
-            status.pending = 0;
-            abortCtl.abort();
-            break;
-          }
-        }
-        if (
-          state &&
-          !["open", "connected", "online"].includes(String(state).toLowerCase())
-        ) {
-          status.error = `Instância ${state}; aguardando 30s`;
-          onStatus(status);
-          onLog(`!! Instância ${state}; aguardando 30s`, "warn");
-          if (await sleepInterruptible(30_000, abortCtl.signal, () => pauseFlag)) break;
-          continue;
-        }
-
-        // Aguarda pause de novo (caso pause durante check)
-        if (pauseFlag) {
-          while (pauseFlag && !abortCtl.signal.aborted) {
-            await new Promise((r) => setTimeout(r, 200));
-          }
-          if (abortCtl.signal.aborted) break;
-        }
+        onLog(`... enviando para ${number}`, "info");
 
         // envia
         status.stage = "sending";
