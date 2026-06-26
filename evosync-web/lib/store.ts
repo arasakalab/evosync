@@ -110,6 +110,9 @@ const defaultSettings: Settings = {
   daily_limit: 200,
   last_message: "",
   resend_sent: true,
+  evo_mode: "byo",
+  managed_status: null,
+  managed_error: null,
 };
 
 export const useAppStore = create<AppState>((set, get) => ({

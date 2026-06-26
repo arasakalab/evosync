@@ -15,6 +15,8 @@
 
 import { EvoClient, normalizeNumberLocal } from "@/server/evo/client";
 import { loadSentLog, markSent } from "@/server/store/sent-log";
+import { markPausedByWatchdog } from "@/server/store/watchdog";
+import { logger } from "@/lib/logger";
 import type { Contact, SendStatus } from "@/lib/types";
 
 export interface StartArgs {
@@ -80,6 +82,35 @@ function renderTemplate(contact: Contact, template: string): string {
     out = out.replaceAll("{" + k + "}", String(v));
   }
   return out;
+}
+
+/**
+ * Helper: detecta se uma mensagem de erro indica 401/403 (auth/ban).
+ * Usado em todos os pontos do runner pra acionar o watchdog.
+ */
+function isAuthError(msg: string): boolean {
+  return msg.includes("401") || msg.includes("403");
+}
+
+/**
+ * Aciona o watchdog per-tenant. Best-effort: erros aqui NÃO devem
+ * quebrar o fluxo principal do runner.
+ */
+function triggerWatchdog(
+  tenantId: string,
+  reason: string,
+  onLog: (line: string, level: "info" | "ok" | "warn" | "error") => void
+): void {
+  try {
+    const r = markPausedByWatchdog(tenantId, reason);
+    onLog(
+      `🛑 Watchdog: tenant pausado${r.changed ? " (novo)" : " (já estava)"} — ${reason}`,
+      "error"
+    );
+  } catch (e: any) {
+    logger.error({ err: e, tenantId }, "Falha ao acionar watchdog");
+    onLog(`⚠ Falha ao acionar watchdog: ${e?.message || e}`, "error");
+  }
 }
 
 /**
@@ -190,9 +221,16 @@ export function startRunner(
             const fatal =
               err.includes("instance does not exist") ||
               err.includes("404") ||
-              err.includes("401") ||
-              err.includes("403");
+              isAuthError(err);
             if (fatal) {
+              // Watchdog: pausa SÓ este tenant, não afeta outros
+              if (isAuthError(err)) {
+                triggerWatchdog(
+                  args.tenantId,
+                  `Auth/ban na validação prévia: ${err.slice(0, 200)}`,
+                  onLog
+                );
+              }
               status.pending = 0;
               abortCtl.abort();
               return;
@@ -245,9 +283,16 @@ export function startRunner(
             if (
               instErr.includes("instance does not exist") ||
               instErr.includes("404") ||
-              instErr.includes("401") ||
-              instErr.includes("403")
+              isAuthError(instErr)
             ) {
+              // Watchdog: pausa SÓ este tenant
+              if (isAuthError(instErr)) {
+                triggerWatchdog(
+                  args.tenantId,
+                  `Auth/ban no pre-connection: ${instErr.slice(0, 200)}`,
+                  onLog
+                );
+              }
               status.error = `Instância indisponível: ${instErr}. Abortando envio.`;
               onStatus(status);
               onLog(`!! ${status.error}`, "error");
@@ -383,14 +428,18 @@ export function startRunner(
           onLog(`✓ ${number} enviado (aceito pela API)`, "ok");
         } else {
           status.failed += 1;
-          if (
-            sendResult.msg.includes("401") ||
-            sendResult.msg.includes("403")
-          ) {
+          if (isAuthError(sendResult.msg)) {
             status.stage = "auth";
             status.error = "Auth/ban — verifique a conta";
             onStatus(status);
             onLog(`!! Auth/ban — verifique a conta`, "error");
+            // Watchdog: pausa SÓ este tenant. Outros tenants
+            // continuam podendo enviar normalmente.
+            triggerWatchdog(
+              args.tenantId,
+              `Auth/ban no envio (após ${sentInSession} envios): ${sendResult.msg.slice(0, 200)}`,
+              onLog
+            );
             break;
           }
           status.error = sendResult.msg;

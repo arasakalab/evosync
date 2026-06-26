@@ -5,6 +5,7 @@ import { listContacts } from "@/server/store/contacts";
 import { loadTenantSettings } from "@/server/store/settings";
 import { sender } from "@/server/sender/manager";
 import { jsonError, parseJsonBody, requireTenantId, validateWith } from "@/lib/api-helpers";
+import { checkWatchdogPause } from "@/server/store/watchdog";
 import fs from "node:fs";
 import { hub } from "@/server/ws/hub";
 import type { Contact } from "@/lib/types";
@@ -82,6 +83,17 @@ export async function POST(req: NextRequest) {
   }
   if (sender.isBusy()) {
     return jsonError("Já existe um disparo em andamento.", 409);
+  }
+
+  // Watchdog anti-ban: se este tenant está pausado por auth/ban, recusa
+  const watchdogPause = checkWatchdogPause(tenantId!);
+  if (watchdogPause) {
+    return jsonError(
+      `Tenant pausado pelo watchdog (desde ${watchdogPause.at || "?"}). ` +
+        `Motivo: ${watchdogPause.reason}. ` +
+        `Contate o administrador para liberar.`,
+      423 // Locked
+    );
   }
 
   const settings = loadTenantSettings(tenantId!);

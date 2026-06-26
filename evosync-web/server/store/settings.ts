@@ -31,6 +31,9 @@ const defaults: Settings = {
   daily_limit: 200,
   last_message: "",
   resend_sent: true,
+  evo_mode: "byo",
+  managed_status: null,
+  managed_error: null,
 };
 
 /**
@@ -121,6 +124,9 @@ export function loadTenantSettings(tenantId: string): Settings {
     daily_limit: tenant.dailyLimit,
     last_message: lastMessage || defaults.last_message,
     resend_sent: tenant.resendSent,
+    evo_mode: tenant.evoMode || "byo",
+    managed_status: tenant.evoManagedStatus || null,
+    managed_error: tenant.evoManagedError || null,
   };
   if (s.delay_min < 1) s.delay_min = 1;
   if (s.delay_max < s.delay_min) s.delay_max = s.delay_min;

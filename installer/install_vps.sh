@@ -5,6 +5,7 @@
 #   bash install_vps.sh --update         # git pull + reinicia
 #   bash install_vps.sh --skip-nginx     # se já tem reverse proxy
 #   bash install_vps.sh --domain X       # domínio p/ nginx/certbot
+#   bash install_vps.sh --managed        # também sobe Evolution central (Fase B)
 #
 # Pré-requisitos: Ubuntu 24.04 limpo, acesso root, DNS apontando pro IP.
 set -euo pipefail
@@ -16,6 +17,7 @@ NODE_MAJOR_REQUIRED=20
 DOMAIN="${DOMAIN:-}"
 SKIP_NGINX=0
 UPDATE_ONLY=0
+MANAGED=0
 
 while [ "${1:-}" != "" ]; do
   case "$1" in
@@ -23,6 +25,7 @@ while [ "${1:-}" != "" ]; do
     --skip-nginx) SKIP_NGINX=1 ;;
     --domain) DOMAIN="${2:-}"; shift ;;
     --repo) REPO_URL="${2:-}"; shift ;;
+    --managed) MANAGED=1 ;;
     -h|--help)
       sed -n '2,12p' "$0"
       exit 0
@@ -271,9 +274,9 @@ systemctl is-active evosync.service && log "✓ evosync está rodando" || {
 
 cat <<EOF
 
-================================================================
+===============================================================
   EvoSync instalado com sucesso!
-================================================================
+===============================================================
 
   Pasta:        $APP_DIR
   Logs:         journalctl -u evosync -f
@@ -288,3 +291,22 @@ cat <<EOF
      cd $APP_DIR/evosync-web && sudo -u evosync npx tsx scripts/seed-admin.ts
 
 EOF
+
+# === Managed central (Fase B) ===
+# Se --managed foi passado OU se o usuário aceitar prompt, roda setup_central_evo.sh
+RUN_MANAGED="$MANAGED"
+if [ "$RUN_MANAGED" = "0" ] && [ -t 0 ]; then
+  printf '%s' "Subir Evolution API centralizada (modo managed, Fase B)? (y/N): "
+  read -r ans
+  case "${ans:-N}" in
+    y|Y|yes|YES) RUN_MANAGED=1 ;;
+  esac
+fi
+if [ "$RUN_MANAGED" = "1" ]; then
+  log "Subindo Managed Central..."
+  if [ -f "$APP_DIR/installer/setup_central_evo.sh" ]; then
+    bash "$APP_DIR/installer/setup_central_evo.sh"
+  else
+    log "setup_central_evo.sh não encontrado em $APP_DIR/installer/. Baixe o repo atualizado."
+  fi
+fi

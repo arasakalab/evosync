@@ -56,6 +56,14 @@ export interface SendStatus {
   limit_reached: boolean;
 }
 
+export type EvoMode = "byo" | "managed";
+export type ManagedStatus =
+  | "pending"
+  | "provisioning"
+  | "ready"
+  | "connected"
+  | "failed";
+
 export interface Settings {
   url: string;
   api_key: string;
@@ -66,6 +74,13 @@ export interface Settings {
   daily_limit: number;
   last_message: string;
   resend_sent: boolean;
+  // Managed central (Fase B): se "managed", a UI mostra QR em vez de
+  // campos de URL/key. Definido pelo super_admin no momento da criação
+  // do tenant, imutável pelo próprio tenant.
+  evo_mode: EvoMode;
+  // Status atual do provisionamento managed. null quando evo_mode=byo.
+  managed_status: ManagedStatus | null;
+  managed_error: string | null;
 }
 
 export type ScheduleStatus =

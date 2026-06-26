@@ -4,6 +4,8 @@ import { getDb, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { logAudit } from "@/server/store/audit";
+import { provisionManagedTenant } from "@/server/store/managed-evo";
+import { CENTRAL_EVO_ENABLED } from "@/server/paths";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +29,11 @@ export async function GET(_req: NextRequest) {
 
 /**
  * POST /api/admin/tenants
- * Body: { name, slug, licenseDays? }
- * Cria tenant + licença inicial. Não cria usuário (faça via invite).
+ * Body: { name, slug, licenseDays?, evoMode?: "byo" | "managed" }
+ * Cria tenant + licença inicial. Se evoMode="managed" e o servidor
+ * estiver configurado (CENTRAL_EVO_ENABLED), provisiona a instância
+ * automaticamente na Evolution central e grava credenciais criptografadas.
+ * Não cria usuário (faça via invite).
  */
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -44,7 +49,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
-  const { name, slug, licenseDays } = body;
+  const { name, slug, licenseDays, evoMode } = body;
   if (!name || !slug) {
     return NextResponse.json(
       { error: "name e slug são obrigatórios" },
@@ -55,6 +60,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "slug deve ter 2-40 chars: letras minúsculas, números e hífen" },
       { status: 400 }
+    );
+  }
+  // Resolved evoMode: default byo. managed só se explicitamente pedido.
+  const requestedMode: "byo" | "managed" =
+    evoMode === "managed" ? "managed" : "byo";
+  if (requestedMode === "managed" && !CENTRAL_EVO_ENABLED) {
+    return NextResponse.json(
+      {
+        error:
+          "evoMode=managed solicitado mas servidor não está configurado (EVOLUTION_CENTRAL_URL/APIKEY ausentes). Use 'byo' ou rode installer/setup_central_evo.sh.",
+      },
+      { status: 503 }
     );
   }
   const db = getDb();
@@ -83,6 +100,9 @@ export async function POST(req: NextRequest) {
       evoUrl: null,
       evoApiKeyEncrypted: null,
       evoInstance: null,
+      evoMode: requestedMode,
+      evoManagedStatus: requestedMode === "managed" ? "pending" : null,
+      evoManagedError: null,
       opencodeModel: "",
       delayMin: 8,
       delayMax: 25,
@@ -109,8 +129,35 @@ export async function POST(req: NextRequest) {
     tenantId: id,
     userId: session.user.id,
     action: "tenant.created",
-    details: { name, slug, licenseDays: days, expiresAt: exp },
+    details: { name, slug, licenseDays: days, expiresAt: exp, evoMode: requestedMode },
   });
 
-  return NextResponse.json({ ok: true, id });
+  // Se for managed, auto-provisiona agora (não bloqueia a response — se
+  // falhar, o admin pode reprovisionar pelo botão "Provisionar" depois).
+  let provisionResult: { ok: boolean; alreadyExisted: boolean; message: string } | null = null;
+  if (requestedMode === "managed") {
+    const t = db
+      .select()
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, id))
+      .get();
+    if (t) {
+      try {
+        provisionResult = await provisionManagedTenant(t, session.user.id);
+      } catch (e: any) {
+        provisionResult = {
+          ok: false,
+          alreadyExisted: false,
+          message: e?.message || String(e),
+        };
+      }
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    id,
+    evoMode: requestedMode,
+    provision: provisionResult,
+  });
 }

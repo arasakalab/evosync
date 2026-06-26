@@ -37,6 +37,39 @@ export const tenants = sqliteTable(
     evoUrl: text("evo_url"),
     evoApiKeyEncrypted: text("evo_api_key_encrypted"),
     evoInstance: text("evo_instance"),
+    // Managed central (Fase B): EvoSync hospeda 1 Evolution API e cria
+    // 1 instância por tenant via /instance/create. Default "byo" para
+    // preservar tenants legados.
+    evoMode: text("evo_mode", { enum: ["byo", "managed"] })
+      .notNull()
+      .default("byo"),
+    // Status do provisionamento managed (null enquanto byo).
+    // "pending" = criou tenant mas instância ainda não foi criada na Evolution.
+    // "provisioning" = chamada em andamento.
+    // "ready" = instância criada, aguardando QR scan.
+    // "connected" = WhatsApp escaneado e logado.
+    // "failed" = erro (ver managedError).
+    evoManagedStatus: text("evo_managed_status", {
+      enum: [
+        "pending",
+        "provisioning",
+        "ready",
+        "connected",
+        "failed",
+      ],
+    }),
+    evoManagedError: text("evo_managed_error"),
+    // Watchdog anti-ban (Fase B+): quando o sender detecta 401/403
+    // (sinal de ban ou auth inválida), pausa ESTE tenant específico.
+    // Outros tenants não são afetados. Admin precisa limpar via
+    // /admin/tenants/[id]/watchdog/clear pra reabilitar envios.
+    pausedByWatchdog: integer("paused_by_watchdog", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    pausedReason: text("paused_reason"),
+    pausedAt: text("paused_at"),
+    // Contador de pausas acumuladas (histórico) — não reseta ao limpar.
+    pausedCount: integer("paused_count").notNull().default(0),
     // OpenCode IA model (opcional, default = "")
     opencodeModel: text("opencode_model").notNull().default(""),
     // Defaults de envio (cada tenant pode customizar)

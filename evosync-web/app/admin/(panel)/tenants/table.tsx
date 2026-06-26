@@ -12,6 +12,15 @@ import {
   X,
   Plus,
   KeyRound,
+  QrCode,
+  RefreshCw,
+  Server,
+  Link2Off,
+  Wifi,
+  WifiOff,
+  AlertCircle,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +38,14 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+type EvoMode = "byo" | "managed";
+type ManagedStatus =
+  | "pending"
+  | "provisioning"
+  | "ready"
+  | "connected"
+  | "failed";
+
 interface Tenant {
   id: string;
   name: string;
@@ -36,14 +53,32 @@ interface Tenant {
   status: string;
   createdAt: string;
   userCount: number;
+  evoMode: EvoMode;
+  evoManagedStatus: ManagedStatus | null;
+  evoManagedError: string | null;
+  evoInstance: string | null;
+  pausedByWatchdog: boolean;
+  pausedReason: string | null;
+  pausedAt: string | null;
+  pausedCount: number;
   latestLicense: { status: string; expiresAt: string } | null;
 }
+
+const MANAGED_STATUS_LABELS: Record<ManagedStatus, { label: string; color: string; icon: any }> = {
+  pending: { label: "Aguardando provisionar", color: "text-muted-foreground", icon: Server },
+  provisioning: { label: "Provisionando...", color: "text-blue", icon: RefreshCw },
+  ready: { label: "Aguardando QR", color: "text-warning", icon: QrCode },
+  connected: { label: "WhatsApp conectado", color: "text-success", icon: Wifi },
+  failed: { label: "Falhou", color: "text-danger", icon: AlertCircle },
+};
 
 export default function TenantsTable({ tenants }: { tenants: Tenant[] }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [busy, setBusy] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Tenant | null>(null);
+  const [revoking, setRevoking] = useState<Tenant | null>(null);
+  const [clearingWatchdog, setClearingWatchdog] = useState<Tenant | null>(null);
   const router = useRouter();
 
   const filtered = tenants.filter((t) => {
@@ -78,6 +113,112 @@ export default function TenantsTable({ tenants }: { tenants: Tenant[] }) {
       } else {
         toast.error("Erro ao atualizar");
       }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function provisionTenant(t: Tenant) {
+    setBusy(t.id);
+    try {
+      const res = await fetch(`/api/admin/tenants/${t.id}/provision`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        toast.success(
+          data.alreadyExisted
+            ? "Instância já existia — credenciais re-vinculadas"
+            : "Instância provisionada com sucesso",
+          { description: data.message }
+        );
+        router.refresh();
+      } else {
+        toast.error(data.error || data.message || "Erro ao provisionar");
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Erro de rede");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function revokeTenant() {
+    if (!revoking) return;
+    setBusy(revoking.id);
+    try {
+      const res = await fetch(`/api/admin/tenants/${revoking.id}/revoke`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        toast.success("Instância revogada", { description: data.message });
+        setRevoking(null);
+        router.refresh();
+      } else {
+        toast.error(data.error || data.message || "Erro ao revogar");
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Erro de rede");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function checkStatus(t: Tenant) {
+    setBusy(t.id);
+    try {
+      const res = await fetch(`/api/admin/tenants/${t.id}/instance-status`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        if (data.managedStatus === "connected") {
+          toast.success("WhatsApp conectado", {
+            description: `Estado: ${data.state}`,
+          });
+        } else if (data.managedStatus === "failed") {
+          toast.error("Falha no provisionamento", {
+            description: data.managedError || "—",
+          });
+        } else {
+          toast.info(`Status: ${data.managedStatus ?? "—"}`, {
+            description: data.error
+              ? `Evolution: ${data.error}`
+              : `Estado: ${data.state ?? "—"}`,
+          });
+        }
+        router.refresh();
+      } else {
+        toast.error(data.error || "Erro ao consultar");
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Erro de rede");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function clearWatchdog() {
+    if (!clearingWatchdog) return;
+    setBusy(clearingWatchdog.id);
+    try {
+      const res = await fetch(
+        `/api/admin/tenants/${clearingWatchdog.id}/watchdog/clear`,
+        { method: "POST" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        toast.success(
+          data.wasPaused
+            ? "Pausa do watchdog liberada"
+            : "Tenant não estava pausado"
+        );
+        setClearingWatchdog(null);
+        router.refresh();
+      } else {
+        toast.error(data.error || data.message || "Erro ao limpar");
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Erro de rede");
     } finally {
       setBusy(null);
     }
@@ -188,6 +329,9 @@ export default function TenantsTable({ tenants }: { tenants: Tenant[] }) {
                       Status
                     </th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+                      Modo
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
                       Usuários
                     </th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">
@@ -230,17 +374,94 @@ export default function TenantsTable({ tenants }: { tenants: Tenant[] }) {
                                 .toUpperCase()}
                             </div>
                             <div className="min-w-0">
-                              <div className="font-medium text-foreground truncate">
-                                {t.name}
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-foreground truncate">
+                                  {t.name}
+                                </span>
+                                {t.pausedByWatchdog && (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded-full border border-danger/30 bg-danger-subtle px-1.5 py-0.5 text-2xs font-medium text-danger-foreground"
+                                    title={t.pausedReason || "Pausado pelo watchdog"}
+                                  >
+                                    <ShieldAlert className="h-2.5 w-2.5" />
+                                    Watchdog
+                                    {t.pausedCount > 1 && (
+                                      <span className="text-2xs text-danger-foreground/70">
+                                        ×{t.pausedCount}
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
                               </div>
                               <div className="text-xs text-muted-foreground font-mono">
                                 {t.slug}
                               </div>
+                              {t.pausedByWatchdog && t.pausedReason && (
+                                <div
+                                  className="text-2xs text-danger-foreground/80 mt-0.5 max-w-[280px] truncate"
+                                  title={t.pausedReason}
+                                >
+                                  {t.pausedReason}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={t.status} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="space-y-1">
+                            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-alt/50 px-2 py-0.5 text-xs">
+                              {t.evoMode === "managed" ? (
+                                <>
+                                  <Server className="h-3 w-3 text-primary" />
+                                  <span className="font-medium text-foreground">
+                                    Managed
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <KeyRound className="h-3 w-3 text-muted-foreground" />
+                                  <span className="font-medium text-muted-foreground">
+                                    BYO
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            {t.evoMode === "managed" && t.evoManagedStatus && (
+                              <div className="flex items-center gap-1 text-xs">
+                                {(() => {
+                                  const cfg =
+                                    MANAGED_STATUS_LABELS[t.evoManagedStatus];
+                                  const Icon = cfg.icon;
+                                  return (
+                                    <>
+                                      <Icon
+                                        className={cn(
+                                          "h-3 w-3",
+                                          cfg.color,
+                                          t.evoManagedStatus === "provisioning" &&
+                                            "animate-spin"
+                                        )}
+                                      />
+                                      <span className={cn("text-xs", cfg.color)}>
+                                        {cfg.label}
+                                      </span>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                            {t.evoMode === "managed" && t.evoManagedError && (
+                              <div
+                                className="text-2xs text-danger-foreground bg-danger-subtle border border-danger/20 rounded px-1.5 py-0.5 max-w-[200px] truncate"
+                                title={t.evoManagedError}
+                              >
+                                {t.evoManagedError}
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-foreground">
                           <div className="inline-flex items-center gap-1.5">
@@ -298,6 +519,37 @@ export default function TenantsTable({ tenants }: { tenants: Tenant[] }) {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48">
+                              {t.evoMode === "managed" && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => provisionTenant(t)}
+                                    className="gap-2"
+                                    disabled={busy === t.id}
+                                  >
+                                    <Server className="h-3.5 w-3.5" />
+                                    {t.evoInstance ? "Reprovisionar" : "Provisionar"}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => checkStatus(t)}
+                                    className="gap-2"
+                                    disabled={busy === t.id || !t.evoInstance}
+                                  >
+                                    <RefreshCw className="h-3.5 w-3.5" />
+                                    Verificar status
+                                  </DropdownMenuItem>
+                                  {t.evoInstance && (
+                                    <DropdownMenuItem
+                                      onClick={() => setRevoking(t)}
+                                      className="gap-2 text-warning focus:text-warning"
+                                      disabled={busy === t.id}
+                                    >
+                                      <Link2Off className="h-3.5 w-3.5" />
+                                      Revogar instância
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
                               {t.status === "active" ? (
                                 <DropdownMenuItem
                                   onClick={() =>
@@ -315,6 +567,16 @@ export default function TenantsTable({ tenants }: { tenants: Tenant[] }) {
                                 >
                                   <Play className="h-3.5 w-3.5" />
                                   Ativar
+                                </DropdownMenuItem>
+                              )}
+                              {t.pausedByWatchdog && (
+                                <DropdownMenuItem
+                                  onClick={() => setClearingWatchdog(t)}
+                                  className="gap-2 text-danger focus:text-danger"
+                                  disabled={busy === t.id}
+                                >
+                                  <ShieldCheck className="h-3.5 w-3.5" />
+                                  Limpar watchdog
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuSeparator />
@@ -353,6 +615,54 @@ export default function TenantsTable({ tenants }: { tenants: Tenant[] }) {
         confirmText="Deletar permanentemente"
         tone="danger"
         onConfirm={deleteTenant}
+      />
+
+      <ConfirmDialog
+        open={!!revoking}
+        onOpenChange={(o) => !o && setRevoking(null)}
+        title="Revogar instância managed"
+        description={
+          <>
+            A instância <code className="text-foreground">{revoking?.evoInstance}</code>{" "}
+            do tenant <strong className="text-foreground">{revoking?.name}</strong>{" "}
+            será <strong>removida da Evolution API central</strong>. O tenant
+            precisará escanear um novo QR code no próximo login. Os contatos
+            e histórico <strong>não</strong> são afetados.
+          </>
+        }
+        confirmText="Revogar instância"
+        tone="warning"
+        onConfirm={revokeTenant}
+      />
+
+      <ConfirmDialog
+        open={!!clearingWatchdog}
+        onOpenChange={(o) => !o && setClearingWatchdog(null)}
+        title="Liberar pausa do watchdog"
+        description={
+          <>
+            O tenant <strong className="text-foreground">{clearingWatchdog?.name}</strong>{" "}
+            voltará a poder enviar mensagens.
+            {clearingWatchdog?.pausedReason && (
+              <>
+                <br />
+                <br />
+                <span className="text-2xs text-muted-foreground">
+                  Motivo da pausa: {clearingWatchdog.pausedReason}
+                </span>
+              </>
+            )}
+            <br />
+            <br />
+            <span className="text-2xs text-muted-foreground">
+              Esta ação será registrada no audit log. O contador de pausas (
+              {clearingWatchdog?.pausedCount ?? 0}) é preservado.
+            </span>
+          </>
+        }
+        confirmText="Liberar pausa"
+        tone="warning"
+        onConfirm={clearWatchdog}
       />
     </div>
   );

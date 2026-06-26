@@ -1,0 +1,400 @@
+"use client";
+
+/**
+ * Card exibido na aba Conexão quando o tenant está em modo managed.
+ *
+ * Comportamento:
+ *  - Polling do QR a cada 2s (ciclo rápido — o QR expira em 30s no cache)
+ *  - Polling do status a cada 5s (mais lento, só pra detectar conexão)
+ *  - Estados visuais:
+ *      pending (instância não existe) → mensagem pedindo pro admin provisionar
+ *      provisioning → spinner
+ *      ready → QR code + "Abra o WhatsApp > Aparelhos conectados"
+ *      connected → ✅ verde + info + botão "Desconectar"
+ *      failed → erro + botão "Tentar novamente"
+ */
+
+import { useEffect, useState, useRef, useCallback } from "react";
+import {
+  Loader2,
+  QrCode,
+  Wifi,
+  WifiOff,
+  AlertCircle,
+  Smartphone,
+  RefreshCw,
+  LogOut,
+  Server,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import type { ManagedStatus } from "@/lib/types";
+
+interface ConnectionStatus {
+  ok: boolean;
+  state: string | null;
+  mode: "byo" | "managed";
+  managedStatus: ManagedStatus | null;
+  error: string | null;
+}
+
+interface QrResponse {
+  qr: { base64: string | null; code: string | null; pairingCode: string | null } | null;
+  expiresInMs: number;
+  instance: string;
+  cached: boolean;
+  state: string | null;
+  error: string | null;
+}
+
+const STATUS_COPY: Record<
+  ManagedStatus,
+  { title: string; description: string; color: string; icon: any }
+> = {
+  pending: {
+    title: "Aguardando provisionamento",
+    description:
+      "Sua instância ainda não foi provisionada. Contate o administrador.",
+    color: "text-muted-foreground",
+    icon: Server,
+  },
+  provisioning: {
+    title: "Provisionando...",
+    description: "Criando sua instância na Evolution API.",
+    color: "text-blue",
+    icon: Loader2,
+  },
+  ready: {
+    title: "Escaneie o QR Code",
+    description:
+      "Abra o WhatsApp no celular → Menu (⋮) → Aparelhos conectados → Conectar um aparelho → Aponte para este QR.",
+    color: "text-warning",
+    icon: QrCode,
+  },
+  connected: {
+    title: "WhatsApp conectado",
+    description: "Sua conta está pareada e pronta para enviar mensagens.",
+    color: "text-success",
+    icon: Wifi,
+  },
+  failed: {
+    title: "Falha no provisionamento",
+    description: "Tente novamente ou contate o administrador.",
+    color: "text-danger",
+    icon: AlertCircle,
+  },
+};
+
+export default function ManagedConnectionCard() {
+  const [status, setStatus] = useState<ConnectionStatus | null>(null);
+  const [qr, setQr] = useState<QrResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const cancelled = useRef(false);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const s = await api.connection.status();
+      setStatus(s);
+    } catch (e: any) {
+      setStatus({
+        ok: false,
+        state: null,
+        mode: "managed",
+        managedStatus: "failed",
+        error: e?.message || "Erro",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchQr = useCallback(async () => {
+    // Só busca QR se estiver em "ready" (instância existe, aguardando pareamento)
+    const current = status?.managedStatus;
+    if (current !== "ready") return;
+    try {
+      const q = await api.connection.qr();
+      setQr(q);
+      setCountdown(Math.floor(q.expiresInMs / 1000));
+    } catch (e: any) {
+      // Silencioso — vai tentar de novo no próximo poll
+      console.warn("QR fetch falhou:", e?.message);
+    }
+  }, [status?.managedStatus]);
+
+  // Polling de status a cada 5s
+  useEffect(() => {
+    cancelled.current = false;
+    fetchStatus();
+    const id = setInterval(() => {
+      if (!cancelled.current) fetchStatus();
+    }, 5000);
+    return () => {
+      cancelled.current = true;
+      clearInterval(id);
+    };
+  }, [fetchStatus]);
+
+  // Polling de QR a cada 2s — só ativo quando status === "ready"
+  useEffect(() => {
+    if (status?.managedStatus !== "ready") return;
+    fetchQr();
+    const id = setInterval(() => {
+      if (!cancelled.current) fetchQr();
+    }, 2000);
+    return () => clearInterval(id);
+  }, [status?.managedStatus, fetchQr]);
+
+  // Countdown do cache
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const id = setInterval(() => setCountdown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(id);
+  }, [countdown, qr?.cached]);
+
+  const onRefresh = async () => {
+    setBusy(true);
+    try {
+      await fetchStatus();
+      await fetchQr();
+      toast.success("Atualizado");
+    } catch (e: any) {
+      toast.error(e?.message || "Erro");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onLogout = async () => {
+    if (
+      !window.confirm(
+        "Desconectar este WhatsApp? Você precisará escanear o QR novamente."
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const r = await api.connection.logout();
+      if (r.ok) {
+        toast.success("WhatsApp desconectado");
+      } else {
+        toast.error(r.info || "Erro ao desconectar");
+      }
+      await fetchStatus();
+    } catch (e: any) {
+      toast.error(e?.message || "Erro");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading || !status) {
+    return (
+      <Card>
+        <CardContent className="p-8 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const current = status.managedStatus ?? "pending";
+  const copy = STATUS_COPY[current];
+  const Icon = copy.icon;
+  const isConnected = current === "connected";
+  const isReady = current === "ready";
+  const isProvisioning = current === "provisioning";
+  const isFailed = current === "failed";
+  const isPending = current === "pending";
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Server className="h-5 w-5 text-primary" />
+                Conexão WhatsApp (Managed)
+              </CardTitle>
+              <CardDescription>
+                Hospedagem centralizada — você não precisa instalar nada.
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onRefresh}
+              disabled={busy}
+              title="Atualizar status"
+            >
+              <RefreshCw className={cn("h-4 w-4", busy && "animate-spin")} />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Status bar */}
+          <div
+            className={cn(
+              "flex items-start gap-3 rounded-lg border p-3",
+              isConnected
+                ? "border-success/30 bg-success/10"
+                : isFailed
+                ? "border-danger/30 bg-danger/10"
+                : isReady
+                ? "border-warning/30 bg-warning/10"
+                : "border-border bg-surface-alt/40"
+            )}
+          >
+            <Icon
+              className={cn(
+                "h-5 w-5 mt-0.5 shrink-0",
+                copy.color,
+                isProvisioning && "animate-spin"
+              )}
+            />
+            <div className="flex-1 min-w-0">
+              <div className={cn("font-medium", copy.color)}>{copy.title}</div>
+              <div className="text-sm text-muted-foreground mt-0.5">
+                {copy.description}
+              </div>
+              {status.error && status.error !== "OK" && (
+                <div className="text-xs text-danger-foreground mt-1 font-mono">
+                  {status.error}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* QR Code (apenas quando ready) */}
+          {isReady && (
+            <div className="space-y-3">
+              <div className="flex justify-center">
+                <div className="relative p-4 bg-white rounded-xl border-2 border-border shadow-elev-2">
+                  {qr?.qr?.base64 ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={qr.qr.base64}
+                      alt="QR Code WhatsApp"
+                      className="h-64 w-64"
+                    />
+                  ) : (
+                    <div className="h-64 w-64 flex items-center justify-center text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {qr?.qr?.code && (
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground mb-1">
+                    Ou use o código de pareamento:
+                  </div>
+                  <code className="text-sm font-mono font-bold tracking-wider text-foreground bg-surface-alt px-3 py-1.5 rounded-md border border-border">
+                    {qr.qr.code}
+                  </code>
+                </div>
+              )}
+
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <Smartphone className="h-3.5 w-3.5" />
+                <span>
+                  QR atualiza automaticamente a cada{" "}
+                  {countdown > 0 ? `${countdown}s` : "alguns segundos"}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Conectado — info + ações */}
+          {isConnected && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-success/30 bg-success/5 p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wifi className="h-4 w-4 text-success" />
+                  <span className="text-sm font-medium text-foreground">
+                    Sessão ativa
+                  </span>
+                </div>
+                <code className="text-xs font-mono text-muted-foreground">
+                  {qr?.instance || "—"}
+                </code>
+              </div>
+              <Button
+                variant="outline"
+                onClick={onLogout}
+                disabled={busy}
+                className="w-full"
+              >
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LogOut className="h-4 w-4" />
+                )}
+                Desconectar WhatsApp
+              </Button>
+            </div>
+          )}
+
+          {/* Pending — admin precisa provisionar */}
+          {isPending && (
+            <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-foreground/80">
+              Sua instância ainda não foi provisionada. O administrador precisa
+              clicar em <strong>Provisionar</strong> na sua empresa para que o QR
+              apareça aqui. Em instâncias já conectadas antes, o sistema
+              mantém a sessão — só mostra este aviso se a instância foi
+              removida da Evolution.
+            </div>
+          )}
+
+          {/* Failed — botão tentar de novo */}
+          {isFailed && (
+            <Button onClick={onRefresh} disabled={busy} className="w-full">
+              {busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Tentar novamente
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Info card de ajuda */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Como funciona?</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-2">
+          <p>
+            O EvoSync mantém <strong>uma única Evolution API centralizada</strong>{" "}
+            que serve todos os clientes. Você não precisa instalar Docker, VPS
+            nem configurar DNS.
+          </p>
+          <p>
+            Para parear seu WhatsApp, basta escanear o QR code acima (ou
+            desconectar e reconectar a qualquer momento).
+          </p>
+          <p className="text-2xs text-muted-foreground/80 pt-1">
+            Este modo é gerenciado pelo administrador do EvoSync. As
+            credenciais da Evolution ficam no servidor e não na sua máquina.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Cable, Save, Play, Eye, EyeOff, Loader2, CheckCircle2, XCircle, Info } from "lucide-react";
+import { Cable, Save, Play, Eye, EyeOff, Loader2, CheckCircle2, XCircle, Info, Server } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,56 @@ import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
 import type { Settings } from "@/lib/types";
 import { Separator } from "@/components/ui/separator";
+import ManagedConnectionCard from "./managed-card";
 
+/**
+ * Aba Conexão — branch por evoMode:
+ *  - "managed" → ManagedConnectionCard (QR + status polling, sem campos editáveis)
+ *  - "byo"     → form atual (URL + API key + instance)
+ *
+ * O evoMode é definido pelo super_admin no momento da criação do tenant e
+ * imutável pelo próprio tenant. O Settings carrega evo_mode e managed_status
+ * para a UI decidir qual card mostrar.
+ */
 export default function ConexaoPage() {
   const settings = useAppStore((s) => s.settings);
   const setSettings = useAppStore((s) => s.setSettings);
   const setConnection = useAppStore((s) => s.setConnection);
-  const connection = useAppStore((s) => s.connection);
 
+  // Tenant em modo managed? Mostra o card de QR.
+  // Importante: settings.evo_mode pode ser "byo" no SSR/initial render antes
+  // de carregar do /api/settings. Mas como o Settings vem do server no
+  // primeiro render via getServerSideProps / loader, deve estar correto.
+  if (settings.evo_mode === "managed") {
+    return (
+      <div className="space-y-6">
+        <header>
+          <h1 className="section-title flex items-center gap-2">
+            <Server className="h-6 w-6 text-primary" />
+            Conexão
+          </h1>
+          <p className="section-subtitle">
+            Sua conexão WhatsApp é gerenciada pelo EvoSync. Escaneie o QR code
+            abaixo para parear.
+          </p>
+        </header>
+        <ManagedConnectionCard />
+      </div>
+    );
+  }
+
+  return <ByoConnectionCard settings={settings} setSettings={setSettings} setConnection={setConnection} />;
+}
+
+function ByoConnectionCard({
+  settings,
+  setSettings,
+  setConnection,
+}: {
+  settings: Settings;
+  setSettings: (s: Settings) => void;
+  setConnection: (c: any) => void;
+}) {
   const [form, setForm] = useState<Settings>(settings);
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -90,9 +133,10 @@ export default function ConexaoPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Evolution API</CardTitle>
+          <CardTitle>Evolution API (BYO)</CardTitle>
           <CardDescription>
-            Endereço, chave de autenticação e nome da instância Evolution.
+            Endereço, chave de autenticação e nome da instância Evolution que
+            <strong> você </strong> hospeda.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

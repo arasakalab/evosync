@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Loader2, Plus, Sparkles } from "lucide-react";
+import {
+  Building2,
+  Loader2,
+  Plus,
+  Sparkles,
+  Server,
+  KeyRound,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,13 +22,23 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { AlertTriangle, Info } from "lucide-react";
+
+type EvoMode = "byo" | "managed";
 
 export default function CreateTenantDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [days, setDays] = useState(30);
+  const [evoMode, setEvoMode] = useState<EvoMode>("byo");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -47,16 +64,33 @@ export default function CreateTenantDialog() {
       const res = await fetch("/api/admin/tenants", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, slug, licenseDays: days }),
+        body: JSON.stringify({
+          name,
+          slug,
+          licenseDays: days,
+          evoMode,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Erro ao criar");
         return;
       }
+      // Se for managed e provision falhou, mostra warning mas não bloqueia
+      if (evoMode === "managed" && data.provision && !data.provision.ok) {
+        setError(
+          `Tenant criado, mas provision falhou: ${data.provision.message}. ` +
+            `Use o botão "Provisionar" na tabela pra tentar de novo.`
+        );
+        // Não fecha o dialog, deixa o admin ver o erro e decidir
+        setBusy(false);
+        return;
+      }
       setOpen(false);
       setName("");
       setSlug("");
+      setEvoMode("byo");
+      setDays(30);
       router.refresh();
     } catch (e: any) {
       setError("Erro de rede");
@@ -104,6 +138,49 @@ export default function CreateTenantDialog() {
               placeholder="Ex: Padaria do Zé"
               autoFocus
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="evoMode">Modo de conexão Evolution</Label>
+            <Select value={evoMode} onValueChange={(v) => setEvoMode(v as EvoMode)}>
+              <SelectTrigger id="evoMode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="byo">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+                    <div className="flex flex-col">
+                      <span>BYO (cliente traz a Evolution)</span>
+                      <span className="text-2xs text-muted-foreground">
+                        Cliente configura URL/API key manualmente
+                      </span>
+                    </div>
+                  </div>
+                </SelectItem>
+                <SelectItem value="managed">
+                  <div className="flex items-center gap-2">
+                    <Server className="h-3.5 w-3.5 text-primary" />
+                    <div className="flex flex-col">
+                      <span>Managed (recomendado)</span>
+                      <span className="text-2xs text-muted-foreground">
+                        Você hospeda a Evolution — cliente só escaneia QR
+                      </span>
+                    </div>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            {evoMode === "managed" && (
+              <div className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-2.5 text-xs text-foreground/80">
+                <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />
+                <div>
+                  Ao criar, a instância será provisionada automaticamente na
+                  Evolution central. O cliente verá um <strong>QR code</strong>{" "}
+                  na aba Conexão para parear o WhatsApp.
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">

@@ -21,6 +21,7 @@ import { getDb, schema } from "@/lib/db";
 import { sender } from "@/server/sender/manager";
 import { EvoClient } from "@/server/evo/client";
 import { hub } from "@/server/ws/hub";
+import { checkWatchdogPause } from "@/server/store/watchdog";
 import type { Schedule } from "@/lib/types";
 
 interface GlobalLoop {
@@ -110,6 +111,18 @@ async function startScheduledSend(s: Schedule) {
   log.info({ scheduleId: s.id, tenantId: s.tenantId }, "Iniciando agendamento");
   if (!s.tenantId) {
     failSchedule(s, "Schedule sem tenantId (inválido).");
+    return;
+  }
+
+  // Watchdog defense-in-depth: checa de novo aqui (caso pause foi
+  // acionada entre checkDue e startScheduledSend)
+  const pause = checkWatchdogPause(s.tenantId);
+  if (pause) {
+    failSchedule(
+      s,
+      `Tenant pausado pelo watchdog desde ${pause.at || "?"}: ${pause.reason}. ` +
+        `Contate o administrador para liberar.`
+    );
     return;
   }
 
@@ -231,6 +244,15 @@ function checkDue() {
   if (sender.isBusy()) return;
   const tenants = listActiveTenants();
   for (const t of tenants) {
+    // Watchdog anti-ban: pula tenants pausados
+    const pause = checkWatchdogPause(t.id);
+    if (pause) {
+      log.warn(
+        { tenantId: t.id, reason: pause.reason },
+        "Tenant pausado pelo watchdog — pulando verificação de agendamentos"
+      );
+      continue;
+    }
     const due = listDuePending(t.id);
     if (due.length > 0) {
       log.info(

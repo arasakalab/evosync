@@ -61,6 +61,14 @@ export default function AdminTenantsPage() {
           status: t.status,
           createdAt: t.createdAt,
           userCount: meta.get(t.id)?.userCount ?? 0,
+          evoMode: t.evoMode,
+          evoManagedStatus: t.evoManagedStatus,
+          evoManagedError: t.evoManagedError,
+          evoInstance: t.evoInstance,
+          pausedByWatchdog: !!t.pausedByWatchdog,
+          pausedReason: t.pausedReason,
+          pausedAt: t.pausedAt,
+          pausedCount: t.pausedCount ?? 0,
           latestLicense: meta.get(t.id)?.latestLicense
             ? {
                 status: meta.get(t.id)!.latestLicense!.status,

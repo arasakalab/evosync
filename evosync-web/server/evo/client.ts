@@ -216,4 +216,157 @@ export class EvoClient {
       return { data: null, err: `Formato inesperado: ${typeof r.json}` };
     return { data: r.json, err: "ok" };
   }
+
+  // ==========================================================================
+  // Managed central (Fase B) — métodos para criar/gerenciar instâncias na
+  // Evolution API centralizada. Não dependem de `this.instance` — o nome da
+  // instância é passado como parâmetro porque cada chamada pode operar em
+  // uma instância diferente.
+  // ==========================================================================
+
+  /**
+   * Cria uma nova instância na Evolution API. Não conecta — só provisiona.
+   * Endpoint: POST /instance/create
+   * Body: { instanceName, qrcode: false, integration: "WHATSAPP-BAILEYS" }
+   * Retorna { instance: { instanceName, instanceId, status, ... } } em caso de
+   * sucesso, ou { error: true, response: { message: [...] } } em caso de erro
+   * (ex: nome já existe → 403 com mensagem "Already exists").
+   */
+  async createInstance(
+    instanceName: string
+  ): Promise<{ ok: boolean; info: string; data?: any }> {
+    const body = JSON.stringify({
+      instanceName,
+      qrcode: false,
+      integration: "WHATSAPP-BAILEYS",
+    });
+    const r = await this.request("POST", this.url("instance", "create"), body);
+    if (r.status === 200 || r.status === 201) {
+      return {
+        ok: true,
+        info: "instância criada",
+        data: r.json,
+      };
+    }
+    if (r.status === 403 || r.status === 409) {
+      return {
+        ok: false,
+        info: `já existe: ${r.text.slice(0, 200)}`,
+      };
+    }
+    return {
+      ok: false,
+      info: `HTTP ${r.status}: ${r.text.slice(0, 300)}`,
+    };
+  }
+
+  /**
+   * Solicita o QR code de pareamento de uma instância. A Evolution API
+   * devolve um QR em base64 (PNG) que precisa ser escaneado pelo app
+   * WhatsApp do cliente.
+   *
+   * Endpoint: GET /instance/connect/{instanceName}
+   * Retorna { pairingCode, code, base64, count } em sucesso.
+   *
+   * Importante: cada chamada GERA UM NOVO QR — o anterior vira inválido.
+   * Por isso cacheamos por até 30s no app pra evitar flood de chamadas.
+   */
+  async connectInstance(
+    instanceName: string
+  ): Promise<{
+    ok: boolean;
+    info: string;
+    qr?: { base64?: string; code?: string; pairingCode?: string };
+  }> {
+    const r = await this.request(
+      "GET",
+      this.url("instance", "connect", instanceName)
+    );
+    if (r.status === 200 && r.json) {
+      const qr = r.json.qrcode || r.json.qr || r.json;
+      return {
+        ok: true,
+        info: "ok",
+        qr: {
+          base64: qr?.base64 || qr?.qrcode || undefined,
+          code: qr?.code || undefined,
+          pairingCode: qr?.pairingCode || undefined,
+        },
+      };
+    }
+    // 404 = instância não existe
+    if (r.status === 404) {
+      return { ok: false, info: "instância não existe" };
+    }
+    // 400 com "already connected" → escaneamento anterior já foi feito
+    if (r.status === 400 && /already.*connect/i.test(r.text)) {
+      return { ok: false, info: "já conectado" };
+    }
+    return { ok: false, info: `HTTP ${r.status}: ${r.text.slice(0, 300)}` };
+  }
+
+  /**
+   * Estado de conexão de uma instância.
+   * Endpoint: GET /instance/connectionState/{instanceName}
+   * Retorna { instance: { state: "open" | "close" | "connecting" } } em sucesso.
+   */
+  async getInstanceState(
+    instanceName: string
+  ): Promise<{ state: string | null; err: string }> {
+    const r = await this.request(
+      "GET",
+      this.url("instance", "connectionState", instanceName)
+    );
+    if (r.status === 404) {
+      return { state: null, err: "instância não existe" };
+    }
+    if (r.status !== 200) {
+      return { state: null, err: `HTTP ${r.status}: ${r.text.slice(0, 200)}` };
+    }
+    if (!r.json) return { state: null, err: "Resposta inválida" };
+    const inst = r.json.instance || {};
+    const state = inst.state ?? r.json.state ?? r.json.status ?? null;
+    return { state: state != null ? String(state) : null, err: "OK" };
+  }
+
+  /**
+   * Desconecta o WhatsApp da instância (logout). NÃO deleta a instância —
+   * para recriar/limpar use deleteInstance().
+   * Endpoint: DELETE /instance/logout/{instanceName}
+   */
+  async logoutInstance(
+    instanceName: string
+  ): Promise<{ ok: boolean; info: string }> {
+    const r = await this.request(
+      "DELETE",
+      this.url("instance", "logout", instanceName)
+    );
+    if (r.status === 200 || r.status === 204) {
+      return { ok: true, info: "desconectado" };
+    }
+    if (r.status === 404) {
+      return { ok: false, info: "instância não existe" };
+    }
+    return { ok: false, info: `HTTP ${r.status}: ${r.text.slice(0, 200)}` };
+  }
+
+  /**
+   * Deleta uma instância completamente (logout + remove do DB + apaga sessão).
+   * Endpoint: DELETE /instance/{instanceName}
+   */
+  async deleteInstance(
+    instanceName: string
+  ): Promise<{ ok: boolean; info: string }> {
+    const r = await this.request(
+      "DELETE",
+      this.url("instance", instanceName)
+    );
+    if (r.status === 200 || r.status === 204) {
+      return { ok: true, info: "instância deletada" };
+    }
+    if (r.status === 404) {
+      return { ok: true, info: "instância não existia (idempotente)" };
+    }
+    return { ok: false, info: `HTTP ${r.status}: ${r.text.slice(0, 200)}` };
+  }
 }

@@ -6,6 +6,7 @@ import type {
   Schedule,
   Settings,
   SendStatus,
+  ManagedStatus,
 } from "@/lib/types";
 
 const BASE = "/api";
@@ -66,6 +67,39 @@ export const api = {
           body: JSON.stringify(s || {}),
         }
       ),
+    /**
+     * Consulta estado atual (managed ou BYO).
+     * Retorna { ok, state, mode, managedStatus, error }.
+     */
+    status: () =>
+      request<{
+        ok: boolean;
+        state: string | null;
+        mode: "byo" | "managed";
+        managedStatus: ManagedStatus | null;
+        error: string | null;
+      }>("/connection/status"),
+    /**
+     * QR code de pareamento (só tenants managed). Cache 30s no servidor.
+     * Retorna { qr: { base64, code, pairingCode } | null, expiresInMs, ... }.
+     */
+    qr: () =>
+      request<{
+        qr: { base64: string | null; code: string | null; pairingCode: string | null } | null;
+        expiresInMs: number;
+        instance: string;
+        cached: boolean;
+        state: string | null;
+        error: string | null;
+      }>("/connection/qr"),
+    /**
+     * Desconecta o WhatsApp (logout na Evolution, NÃO deleta a instância).
+     * Retorna { ok, info }.
+     */
+    logout: () =>
+      request<{ ok: boolean; info: string }>("/connection/logout", {
+        method: "POST",
+      }),
   },
   contacts: {
     /**
