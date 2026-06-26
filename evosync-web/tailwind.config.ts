@@ -64,6 +64,19 @@ const config: Config = {
           DEFAULT: "hsl(var(--info) / <alpha-value>)",
           hover: "hsl(var(--info) / <alpha-value>)",
         },
+        // === BRAND TOKENS (landing pages de promoções por tenant) ===
+        // Usado na página pública /promocoes/[slug]. Default neutro;
+        // cada tenant pode sobrescrever via data-attribute no body.
+        brand: {
+          red: "hsl(var(--brand-red) / <alpha-value>)",
+          "red-hover": "hsl(var(--brand-red-hover) / <alpha-value>)",
+          yellow: "hsl(var(--brand-yellow) / <alpha-value>)",
+          "yellow-soft": "hsl(var(--brand-yellow-soft) / <alpha-value>)",
+          teal: "hsl(var(--brand-teal) / <alpha-value>)",
+          "teal-soft": "hsl(var(--brand-teal-soft) / <alpha-value>)",
+          cream: "hsl(var(--brand-cream) / <alpha-value>)",
+          ink: "hsl(var(--brand-ink) / <alpha-value>)",
+        },
         neutral: {
           DEFAULT: "hsl(var(--muted) / <alpha-value>)",
           hover: "hsl(var(--muted-foreground) / <alpha-value>)",
@@ -194,6 +207,13 @@ const config: Config = {
           "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-hover)) 100%)",
         "gradient-mesh":
           "radial-gradient(at 27% 37%, hsla(160, 60%, 30%, 0.3) 0px, transparent 50%), radial-gradient(at 97% 21%, hsla(220, 60%, 40%, 0.18) 0px, transparent 50%), radial-gradient(at 52% 99%, hsla(160, 60%, 25%, 0.25) 0px, transparent 50%)",
+        // === BRAND LANDING GRADIENTS (Extra Atacarejo style) ===
+        "brand-diagonal":
+          "linear-gradient(135deg, hsl(var(--brand-red)) 0%, hsl(var(--brand-red-hover)) 50%, hsl(var(--brand-yellow)) 100%)",
+        "brand-radial":
+          "radial-gradient(ellipse 70% 60% at 30% 0%, hsl(var(--brand-yellow) / 0.35), transparent 60%), radial-gradient(ellipse 80% 50% at 100% 100%, hsl(var(--brand-red) / 0.18), transparent 60%)",
+        "brand-stripes":
+          "repeating-linear-gradient(135deg, hsl(var(--brand-yellow) / 0.18) 0 24px, transparent 24px 48px)",
       },
       backgroundSize: {
         "grid-32": "32px 32px",

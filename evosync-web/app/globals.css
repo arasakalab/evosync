@@ -48,6 +48,18 @@
     --danger-foreground: 0 72% 38%;
 
     --radius: 0.625rem;
+
+    /* === BRAND TOKENS (landing pages públicas /promocoes/[slug]) === */
+    /* Default: paleta derivada da logo Extra Atacarejo (vermelho + amarelo + turquesa). */
+    /* Pode ser sobrescrita por tenant via <body data-brand="..."> se necessário. */
+    --brand-red: 354 96% 45%;        /* #E30613 — CTA primário */
+    --brand-red-hover: 354 96% 38%;  /* hover mais escuro */
+    --brand-yellow: 48 100% 50%;     /* #FFD200 — listras/highlights */
+    --brand-yellow-soft: 48 100% 92%;/* fundo amarelo clarinho */
+    --brand-teal: 173 100% 32%;      /* #00A99D — detalhe/borda */
+    --brand-teal-soft: 173 60% 95%;  /* turquesa clarinho */
+    --brand-cream: 48 80% 97%;       /* fundo geral */
+    --brand-ink: 354 30% 15%;        /* texto escuro */
   }
 
   .dark {
@@ -174,6 +186,382 @@
   /* Focus ring */
   :focus-visible {
     outline: none;
+  }
+}
+
+/* ===================================================================
+   BRAND LANDING (público) — escopo .brand-landing
+   Usado em /promocoes/[slug]. Isola estilos da landing do resto do app.
+   Paleta: vermelho #E30613 + amarelo #FFD200 + turquesa #00A99D.
+   =================================================================== */
+@layer components {
+  .brand-landing {
+    background: hsl(var(--brand-cream));
+    color: hsl(var(--brand-ink));
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ====== FUNDO COM TEXTURA DE PREÇO (atacarejo) ====== */
+  .brand-landing .brand-bg-stripes {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent 0,
+      transparent 32px,
+      hsl(var(--brand-yellow) / 0.18) 32px,
+      hsl(var(--brand-yellow) / 0.18) 36px
+    );
+  }
+  .brand-landing .brand-bg-dots {
+    background-image: radial-gradient(
+      circle,
+      hsl(var(--brand-red) / 0.08) 1.2px,
+      transparent 1.2px
+    );
+    background-size: 24px 24px;
+  }
+
+  /* ====== HERO ====== */
+  .brand-landing .brand-hero {
+    position: relative;
+    overflow: hidden;
+    background:
+      linear-gradient(135deg, hsl(var(--brand-red)) 0%, hsl(var(--brand-red-hover)) 100%);
+    color: white;
+    border-radius: 1.75rem;
+  }
+  .brand-landing .brand-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent 0,
+      transparent 60px,
+      hsl(var(--brand-yellow) / 0.12) 60px,
+      hsl(var(--brand-yellow) / 0.12) 68px
+    );
+    pointer-events: none;
+  }
+  .brand-landing .brand-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 60% at 90% 10%, hsl(var(--brand-yellow) / 0.45), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 10% 90%, hsl(var(--brand-yellow) / 0.25), transparent 60%);
+    pointer-events: none;
+  }
+  .brand-landing .brand-hero > * {
+    position: relative;
+    z-index: 1;
+  }
+  .brand-landing .brand-hero-title {
+    color: white;
+    text-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+    line-height: 1.05;
+  }
+  .brand-landing .brand-hero-highlight {
+    color: hsl(var(--brand-yellow));
+    display: inline-block;
+    position: relative;
+    white-space: nowrap;
+  }
+  .brand-landing .brand-hero-highlight::after {
+    content: "";
+    position: absolute;
+    left: -2px;
+    right: -2px;
+    bottom: 0.05em;
+    height: 0.4em;
+    background: hsl(var(--brand-yellow) / 0.3);
+    z-index: -1;
+    border-radius: 4px;
+    transform: skewX(-8deg);
+  }
+
+  /* Etiqueta de preço flutuante (decoração) */
+  .brand-landing .brand-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.875rem;
+    box-shadow: 0 6px 14px -4px rgb(0 0 0 / 0.18);
+    border: 2px solid white;
+  }
+  .brand-landing .brand-tag-yellow {
+    background: hsl(var(--brand-yellow));
+    color: hsl(var(--brand-red));
+  }
+  .brand-landing .brand-tag-white {
+    background: white;
+    color: hsl(var(--brand-red));
+  }
+
+  /* ====== CARD DO FORM ====== */
+  .brand-landing .brand-card {
+    background: white;
+    border-radius: 1.5rem;
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.04),
+      0 24px 48px -16px hsl(var(--brand-red) / 0.18),
+      0 8px 16px -8px hsl(var(--brand-yellow) / 0.4);
+    border: 1px solid hsl(var(--brand-yellow) / 0.4);
+    position: relative;
+    overflow: hidden;
+  }
+  .brand-landing .brand-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--brand-red)) 0%,
+      hsl(var(--brand-yellow)) 50%,
+      hsl(var(--brand-teal)) 100%
+    );
+  }
+
+  /* ====== INPUT ====== */
+  .brand-landing .brand-input {
+    height: 3.25rem;
+    width: 100%;
+    border-radius: 0.875rem;
+    border: 2px solid hsl(var(--brand-ink) / 0.1);
+    background: hsl(var(--brand-cream) / 0.4);
+    padding: 0 1rem 0 3rem;
+    font-size: 1rem;
+    color: hsl(var(--brand-ink));
+    transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    font-weight: 500;
+  }
+  .brand-landing .brand-input::placeholder {
+    color: hsl(var(--brand-ink) / 0.4);
+    font-weight: 400;
+  }
+  .brand-landing .brand-input:hover {
+    border-color: hsl(var(--brand-ink) / 0.2);
+  }
+  .brand-landing .brand-input:focus {
+    outline: none;
+    border-color: hsl(var(--brand-red));
+    background: white;
+    box-shadow:
+      0 0 0 4px hsl(var(--brand-yellow) / 0.25),
+      0 4px 12px -2px hsl(var(--brand-red) / 0.15);
+  }
+  .brand-landing .brand-input[aria-invalid="true"] {
+    border-color: hsl(var(--brand-red));
+    background: hsl(var(--brand-red) / 0.04);
+  }
+
+  /* ====== CHECKBOX LGPD ====== */
+  .brand-landing .brand-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    border-radius: 0.875rem;
+    background: hsl(var(--brand-cream) / 0.5);
+    border: 1.5px solid hsl(var(--brand-teal) / 0.25);
+    cursor: pointer;
+    transition: all 200ms ease;
+  }
+  .brand-landing .brand-checkbox:hover {
+    background: hsl(var(--brand-teal) / 0.06);
+    border-color: hsl(var(--brand-teal) / 0.45);
+  }
+  .brand-landing .brand-checkbox input[type="checkbox"] {
+    margin-top: 0.15rem;
+    height: 1.15rem;
+    width: 1.15rem;
+    border-radius: 0.35rem;
+    border: 2px solid hsl(var(--brand-teal) / 0.4);
+    accent-color: hsl(var(--brand-red));
+    cursor: pointer;
+  }
+
+  /* ====== CTA (botão) ====== */
+  .brand-landing .brand-cta {
+    position: relative;
+    background: hsl(var(--brand-red));
+    color: white;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    box-shadow:
+      0 6px 0 hsl(var(--brand-red-hover)),
+      0 12px 24px -6px hsl(var(--brand-red) / 0.45);
+    transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+  }
+  .brand-landing .brand-cta::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      135deg,
+      transparent 30%,
+      rgb(255 255 255 / 0.15) 50%,
+      transparent 70%
+    );
+    transform: translateX(-100%);
+    transition: transform 600ms ease;
+  }
+  .brand-landing .brand-cta:hover:not(:disabled)::before {
+    transform: translateX(100%);
+  }
+  .brand-landing .brand-cta:hover:not(:disabled) {
+    background: hsl(var(--brand-red-hover));
+    transform: translateY(-2px);
+    box-shadow:
+      0 8px 0 hsl(354 96% 32%),
+      0 16px 32px -8px hsl(var(--brand-red) / 0.5);
+  }
+  .brand-landing .brand-cta:active:not(:disabled) {
+    transform: translateY(3px);
+    box-shadow:
+      0 2px 0 hsl(var(--brand-red-hover)),
+      0 4px 8px -2px hsl(var(--brand-red) / 0.3);
+  }
+  .brand-landing .brand-cta:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* ====== WHATSAPP PREVIEW BUBBLE ====== */
+  .brand-landing .brand-bubble {
+    background: white;
+    border-radius: 0.5rem 0.5rem 0.5rem 0.15rem;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.08);
+    padding: 0.75rem 1rem;
+    max-width: 280px;
+    position: relative;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: hsl(var(--brand-ink));
+  }
+  .brand-landing .brand-bubble::before {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: -8px;
+    width: 0;
+    height: 0;
+    border: 8px solid transparent;
+    border-top-color: white;
+    border-right: 0;
+    border-bottom: 0;
+    margin-bottom: -4px;
+  }
+
+  /* ====== BADGES / STATS ====== */
+  .brand-landing .brand-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: hsl(var(--brand-ink) / 0.7);
+    font-weight: 500;
+  }
+  .brand-landing .brand-stat-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.5rem;
+    width: 1.5rem;
+    border-radius: 999px;
+    background: hsl(var(--brand-teal) / 0.15);
+    color: hsl(var(--brand-teal));
+  }
+
+  /* ====== TRUST BAR ====== */
+  .brand-landing .brand-trust {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: hsl(var(--brand-teal) / 0.08);
+    border: 1px dashed hsl(var(--brand-teal) / 0.35);
+    border-radius: 0.75rem;
+    color: hsl(var(--brand-ink) / 0.7);
+    font-size: 0.75rem;
+  }
+
+  /* ====== ANIMAÇÕES ====== */
+  @keyframes brand-float {
+    0%, 100% { transform: translateY(0) rotate(-8deg); }
+    50% { transform: translateY(-8px) rotate(-8deg); }
+  }
+  @keyframes brand-float-delayed {
+    0%, 100% { transform: translateY(0) rotate(6deg); }
+    50% { transform: translateY(-6px) rotate(6deg); }
+  }
+  @keyframes brand-pulse-ring {
+    0% { box-shadow: 0 0 0 0 hsl(var(--brand-teal) / 0.5); }
+    70% { box-shadow: 0 0 0 14px hsl(var(--brand-teal) / 0); }
+    100% { box-shadow: 0 0 0 0 hsl(var(--brand-teal) / 0); }
+  }
+  @keyframes brand-fade-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes brand-bounce-in {
+    0% { transform: scale(0.6); opacity: 0; }
+    60% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  @keyframes brand-shine {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  .brand-landing .animate-float {
+    animation: brand-float 4s ease-in-out infinite;
+  }
+  .brand-landing .animate-float-delayed {
+    animation: brand-float-delayed 5s ease-in-out 0.5s infinite;
+  }
+  .brand-landing .animate-pulse-ring {
+    animation: brand-pulse-ring 2s ease-out infinite;
+  }
+  .brand-landing .animate-fade-up {
+    animation: brand-fade-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .brand-landing .animate-bounce-in {
+    animation: brand-bounce-in 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .brand-landing .animate-fade-up-1 { animation-delay: 100ms; }
+  .brand-landing .animate-fade-up-2 { animation-delay: 200ms; }
+  .brand-landing .animate-fade-up-3 { animation-delay: 300ms; }
+  .brand-landing .animate-fade-up-4 { animation-delay: 400ms; }
+
+  /* Decorative blobs */
+  .brand-landing .brand-blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(40px);
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* WhatsApp icon badge (usado em pontos de destaque) */
+  .brand-landing .brand-wpp-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.5rem;
+    width: 2.5rem;
+    border-radius: 0.75rem;
+    background: #25D366;
+    color: white;
+    box-shadow: 0 6px 16px -4px rgb(37 211 102 / 0.5);
   }
 }
 

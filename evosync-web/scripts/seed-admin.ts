@@ -197,6 +197,53 @@ async function seedDemoTenant(superAdminId: string) {
   console.log(`  Operator: ${operatorEmail} / ${operatorPassword}`);
 }
 
+async function seedPromoTenant(superAdminId: string) {
+  const db = getDb();
+  console.log("\n[seed] Criando tenant 'Extra Atacarejo' (landing /promocoes/extra-atacarejo)...");
+
+  // Verifica se já existe
+  const existing = db
+    .select()
+    .from(schema.tenants)
+    .where(eq(schema.tenants.slug, "extra-atacarejo"))
+    .all();
+  if (existing.length > 0) {
+    console.log("[seed] Tenant Extra Atacarejo já existe, pulando");
+    return;
+  }
+
+  const tenantId = randomUUID().replace(/-/g, "");
+  const now = new Date().toISOString();
+
+  // Tenant
+  db.insert(schema.tenants)
+    .values({
+      id: tenantId,
+      name: "Extra Atacarejo",
+      slug: "extra-atacarejo",
+      status: "active",
+      evoUrl: null,
+      evoApiKeyEncrypted: null,
+      evoInstance: null,
+      opencodeModel: "",
+      delayMin: 8,
+      delayMax: 25,
+      dailyLimit: 200,
+      resendSent: true,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run();
+
+  // License de 30 dias
+  extendLicense(tenantId, 30, superAdminId, "Promo seed (30 dias)");
+
+  console.log(`[seed] ✓ Tenant Extra Atacarejo criado:`);
+  console.log(`  Slug: extra-atacarejo`);
+  console.log(`  URL:  /promocoes/extra-atacarejo`);
+  console.log(`  ID:   ${tenantId}`);
+}
+
 async function main() {
   const superAdminId = await seedSuperAdmin();
 
@@ -210,10 +257,21 @@ async function main() {
     await seedDemoTenant(superAdminId);
   }
 
+  // Tenant da landing pública de promoções (idempotente)
+  let createPromo = process.env.PROMO_TENANT === "1";
+  if (!createPromo && process.stdin.isTTY) {
+    const ans = await prompt("\nCriar tenant 'Extra Atacarejo' (landing /promocoes/extra-atacarejo)? (s/N): ");
+    createPromo = ans.toLowerCase() === "s";
+  }
+  if (createPromo) {
+    await seedPromoTenant(superAdminId);
+  }
+
   console.log("\n[seed] ✓ Tudo pronto!");
   console.log("\n[seed] Credenciais:");
   console.log("  Super admin: <email que você definiu>");
   console.log("  Operator:    operator@demo.test / demo123");
+  console.log("  Landing:     /promocoes/extra-atacarejo");
 }
 
 main().catch((e) => {
