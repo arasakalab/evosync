@@ -33,6 +33,32 @@ install -m 640 -o "$APP_USER" -g "$APP_USER" \
   "$APP_DIR/installer/opencode/opencode.json" "$OC_DIR/config/opencode.json"
 chown -R "$APP_USER:$APP_USER" "$OC_DIR"
 
+# === auth.json (OpenCode Zen exige credencial em data/opencode/auth.json) ===
+sync_auth_json() {
+  local key
+  key=$(grep '^OPENCODE_API_KEY=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '\r' || true)
+  [ -n "$key" ] || return 0
+  mkdir -p "$OC_DIR/data/opencode"
+  python3 - <<PY
+import json, os
+key = os.environ["KEY"]
+path = os.environ["AUTH"]
+data = {}
+try:
+    with open(path) as f:
+        data = json.load(f)
+except FileNotFoundError:
+    pass
+entry = {"type": "api", "key": key}
+data["opencode"] = entry
+data["zen"] = entry
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+os.chmod(path, 0o600)
+PY
+  chown -R "$APP_USER:$APP_USER" "$OC_DIR/data"
+}
+
 # === Variáveis no .env (preserva valores existentes) ===
 ENV_FILE="$APP_DIR/.env"
 [ -f "$ENV_FILE" ] || fail "$ENV_FILE não encontrado"
@@ -55,6 +81,14 @@ ensure_env NVIDIA_API_KEY ""
 ensure_env OPENCODE_API_KEY ""
 chown "$APP_USER:$APP_USER" "$ENV_FILE"
 chmod 600 "$ENV_FILE"
+
+KEY=$(grep '^OPENCODE_API_KEY=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r' || true)
+if [ -n "$KEY" ]; then
+  export KEY
+  export AUTH="$OC_DIR/data/opencode/auth.json"
+  sync_auth_json
+  log "auth.json sincronizado para OpenCode Zen"
+fi
 
 # === Systemd: paths graváveis + PATH com /usr/local/bin ===
 UNIT="/etc/systemd/system/evosync.service"

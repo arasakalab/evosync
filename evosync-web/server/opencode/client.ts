@@ -93,6 +93,35 @@ function resolveOpencode(): string | null {
   return null;
 }
 
+function opencodeDataDir(): string {
+  const xdg = (process.env.XDG_DATA_HOME || "").trim();
+  if (xdg) return path.join(xdg, "opencode");
+  const home = (process.env.OPENCODE_HOME || process.env.HOME || "").trim();
+  if (home) return path.join(home, ".local", "share", "opencode");
+  return path.join("/tmp", "opencode-data");
+}
+
+/** OpenCode Zen lê credenciais de auth.json, não só OPENCODE_API_KEY no config. */
+function syncOpencodeAuthFile(apiKey: string): void {
+  const authDir = opencodeDataDir();
+  const authFile = path.join(authDir, "auth.json");
+  fs.mkdirSync(authDir, { recursive: true });
+
+  let data: Record<string, { type: string; key: string }> = {};
+  try {
+    if (fs.existsSync(authFile)) {
+      data = JSON.parse(fs.readFileSync(authFile, "utf8")) as typeof data;
+    }
+  } catch {
+    /* noop */
+  }
+
+  const entry = { type: "api", key: apiKey };
+  data.opencode = entry;
+  data.zen = entry;
+  fs.writeFileSync(authFile, JSON.stringify(data, null, 2), { mode: 0o600 });
+}
+
 function opencodeSpawnEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
   const home = (process.env.OPENCODE_HOME || "").trim();
@@ -105,9 +134,26 @@ function opencodeSpawnEnv(): NodeJS.ProcessEnv {
   if (process.env.XDG_CONFIG_HOME) {
     env.XDG_CONFIG_HOME = process.env.XDG_CONFIG_HOME;
   }
-  if (process.env.XDG_DATA_HOME) {
-    env.XDG_DATA_HOME = process.env.XDG_DATA_HOME;
+  const dataHome = (process.env.XDG_DATA_HOME || "").trim();
+  if (dataHome) {
+    env.XDG_DATA_HOME = dataHome;
   }
+
+  const zenKey = (
+    process.env.OPENCODE_API_KEY ||
+    process.env.OPENCODE_ZEN_API_KEY ||
+    ""
+  ).trim();
+  if (zenKey) {
+    env.OPENCODE_API_KEY = zenKey;
+    env.OPENCODE_ZEN_API_KEY = zenKey;
+    try {
+      syncOpencodeAuthFile(zenKey);
+    } catch {
+      /* noop — falha ao gravar auth.json */
+    }
+  }
+
   return env;
 }
 
