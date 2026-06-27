@@ -74,6 +74,9 @@ export interface Settings {
   daily_limit: number;
   last_message: string;
   resend_sent: boolean;
+  // Slug público do tenant — usado pra construir o link de cadastro
+  // da landing /c/[slug] (Fase C).
+  slug: string;
   // Managed central (Fase B): se "managed", a UI mostra QR em vez de
   // campos de URL/key. Definido pelo super_admin no momento da criação
   // do tenant, imutável pelo próprio tenant.

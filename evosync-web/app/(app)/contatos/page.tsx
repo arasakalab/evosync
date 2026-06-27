@@ -12,6 +12,8 @@ import {
   Loader2,
   AlertTriangle,
   Hash,
+  Link2,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import Papa from "papaparse";
@@ -77,6 +79,7 @@ export default function ContatosPage() {
 
   const contactLists = useAppStore((s) => s.contactLists);
   const setContactLists = useAppStore((s) => s.setContactLists);
+  const tenantSlug = useAppStore((s) => s.settings.slug);
 
   const [importingWa, setImportingWa] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -84,7 +87,23 @@ export default function ContatosPage() {
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [createListOpen, setCreateListOpen] = useState(false);
   const [addTagOpen, setAddTagOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const copySignupLink = async () => {
+    if (!tenantSlug) return;
+    const link = `${window.location.origin}/c/${tenantSlug}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      toast.success("Link copiado!", { description: link });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Não foi possível copiar. Selecione e copie manualmente:", {
+        description: link,
+      });
+    }
+  };
 
   // Carrega a lista inicial (catálogo) e hidrata listas
   useEffect(() => {
@@ -387,6 +406,23 @@ export default function ContatosPage() {
               <Download className="h-4 w-4" />
             )}
             Importar WhatsApp
+          </Button>
+          <Button
+            variant="outline"
+            onClick={copySignupLink}
+            disabled={!tenantSlug}
+            title={
+              tenantSlug
+                ? `Copiar link público: /c/${tenantSlug}`
+                : "Carregando…"
+            }
+          >
+            {copied ? (
+              <Check className="h-4 w-4 text-success" />
+            ) : (
+              <Link2 className="h-4 w-4" />
+            )}
+            Copiar link de cadastro
           </Button>
           <Button variant="neutral" onClick={() => setShowAdd(true)}>
             <UserPlus className="h-4 w-4" /> Adicionar
