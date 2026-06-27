@@ -83,8 +83,8 @@ const STATUS_COPY: Record<
     icon: Server,
   },
   provisioning: {
-    title: "Provisionando...",
-    description: "Criando sua instância na Evolution API.",
+    title: "Preparando conexão...",
+    description: "Estamos configurando seu WhatsApp no painel. Aguarde um instante.",
     color: "text-blue",
     icon: Loader2,
   },
@@ -426,17 +426,18 @@ export default function ManagedConnectionCard() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
           <p>
-            O EvoSync mantém <strong>uma única Evolution API centralizada</strong>{" "}
-            que serve todos os clientes. Você não precisa instalar Docker, VPS
-            nem configurar DNS.
+            A conexão do WhatsApp é feita <strong>100% pelo painel</strong> — sem
+            instalar programas, sem configurar servidores e sem depender do seu
+            computador.
           </p>
           <p>
-            Para parear seu WhatsApp, basta escanear o QR code acima (ou
-            desconectar e reconectar a qualquer momento).
+            Para vincular, escaneie o QR code acima no celular (WhatsApp →
+            Aparelhos conectados → Conectar um aparelho). Se precisar trocar de
+            aparelho, desconecte e escaneie um novo código quando quiser.
           </p>
-          <p className="text-2xs text-muted-foreground/80 pt-1">
-            Este modo é gerenciado pelo administrador do EvoSync. As
-            credenciais da Evolution ficam no servidor e não na sua máquina.
+          <p className="text-2xs uppercase tracking-widest text-muted-foreground/80 pt-1">
+            by Arasaka Lab — infraestrutura hospedada e administrada por nós.
+            Sua sessão fica segura na nuvem, pronta para suas campanhas.
           </p>
         </CardContent>
       </Card>
