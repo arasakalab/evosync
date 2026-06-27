@@ -1,14 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import {
-  MessageSquare,
-  Sparkles,
-  Eye,
-  Loader2,
-  Info,
-} from "lucide-react";
-import { toast } from "sonner";
+import { useEffect, useState } from "react";
+import { MessageSquare, Eye, Info } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +17,7 @@ import {
   MediaAttachmentField,
   type MediaType,
 } from "@/components/media-attachment-field";
+import { OPENCODE_IA_ENABLED } from "@/lib/feature-flags";
 import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
 
@@ -38,8 +32,6 @@ export default function MensagemPage() {
     (settings.last_media_type as MediaType) || "image"
   );
   const [previewText, setPreviewText] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const lastFileRef = useRef<File | null>(null);
 
   useEffect(() => {
     setTemplate(settings.last_message || "");
@@ -77,41 +69,12 @@ export default function MensagemPage() {
 
   const onMediaPathChange = (path: string) => {
     setMediaPath(path);
-    if (!path) lastFileRef.current = null;
     void persistSettings({ last_media_path: path });
   };
 
   const onMediaTypeChange = (type: MediaType) => {
     setMediaType(type);
     void persistSettings({ last_media_type: type });
-  };
-
-  const onGenerateOpencode = async () => {
-    if (!mediaPath) {
-      toast.error("Selecione uma imagem ou PDF antes de gerar texto.");
-      return;
-    }
-    setGenerating(true);
-    try {
-      const f = lastFileRef.current;
-      if (!f) {
-        toast.error("Selecione o arquivo novamente para o OpenCode.");
-        return;
-      }
-      const res = await api.opencode.generate(f);
-      if (!res.ok) {
-        toast.error(res.error || "Falha ao gerar texto");
-        return;
-      }
-      setTemplate(res.text || "");
-      await persistSettings({ last_message: res.text || "" });
-      setPreviewText("");
-      toast.success("Texto gerado pelo OpenCode. Revise antes de disparar.");
-    } catch (e: any) {
-      toast.error(e?.message || "Falha ao gerar");
-    } finally {
-      setGenerating(false);
-    }
   };
 
   return (
@@ -160,26 +123,11 @@ export default function MensagemPage() {
             mediaType={mediaType}
             onMediaPathChange={onMediaPathChange}
             onMediaTypeChange={onMediaTypeChange}
-            onFileSelected={(file) => {
-              lastFileRef.current = file;
-            }}
           />
 
           <div className="flex flex-wrap items-center gap-2 pt-2">
             <Button variant="blue" onClick={onPreview}>
               <Eye className="h-4 w-4" /> Pré-visualizar
-            </Button>
-            <Button
-              variant="default"
-              onClick={onGenerateOpencode}
-              disabled={!mediaPath || generating}
-            >
-              {generating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-              OpenCode IA
             </Button>
           </div>
         </CardContent>
@@ -202,9 +150,10 @@ export default function MensagemPage() {
         <Info className="h-4 w-4 mt-0.5 shrink-0" />
         <p>
           A mídia selecionada aqui é usada automaticamente na aba{" "}
-          <strong>Disparo</strong>. O OpenCode IA envia o arquivo para{" "}
-          <code className="text-text/80">opencode run --file</code> e usa o
-          modelo configurado em <strong>Conexão</strong>.
+          <strong>Disparo</strong>.
+          {OPENCODE_IA_ENABLED
+            ? " O OpenCode IA gera texto a partir de imagens usando o modelo em Conexão."
+            : null}
         </p>
       </div>
     </div>

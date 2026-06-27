@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { OpenCodeMessageClient } from "@/server/opencode/client";
 import { auth } from "@/lib/auth";
+import { OPENCODE_IA_ENABLED } from "@/lib/feature-flags";
 import { loadTenantSettings, saveTenantSettings } from "@/server/store/settings";
 import fs from "node:fs";
 import path from "node:path";
@@ -10,6 +11,13 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  if (!OPENCODE_IA_ENABLED) {
+    return NextResponse.json(
+      { error: "OpenCode IA está desabilitado no servidor." },
+      { status: 503 }
+    );
+  }
+
   const form = await req.formData();
   const file = form.get("file");
   if (!file || !(file instanceof File)) {
