@@ -140,11 +140,14 @@ cmd_status() {
   fi
   if [ -f "$EVO_ENV_FILE" ]; then
     local api_key
-    api_key=$(evo_env_get "AUTHENTICATION_APIKEY")
+    api_key=$(evo_env_get "AUTHENTICATION_API_KEY")
+    if [ -z "$api_key" ]; then
+      api_key=$(evo_env_get "AUTHENTICATION_APIKEY")
+    fi
     if [ -n "$api_key" ]; then
-      ok "AUTHENTICATION_APIKEY definida (${#api_key} chars)"
+      ok "AUTHENTICATION_API_KEY definida (${#api_key} chars)"
     else
-      warn "AUTHENTICATION_APIKEY NÃO definida em $EVO_ENV_FILE"
+      warn "AUTHENTICATION_API_KEY NÃO definida em $EVO_ENV_FILE"
     fi
   else
     warn "$EVO_ENV_FILE não existe"
@@ -155,7 +158,7 @@ cmd_status() {
       --format "    {{.Names}} | {{.Status}} | {{.Ports}}" 2>/dev/null
     echo ""
     info "Health check:"
-    if curl -sf -m 5 -H "apikey: $(evo_env_get AUTHENTICATION_APIKEY)" \
+    if curl -sf -m 5 -H "apikey: $(evo_env_get AUTHENTICATION_API_KEY || evo_env_get AUTHENTICATION_APIKEY)" \
          "http://localhost:${EVO_PORT}/" 2>/dev/null | head -c 200; then
       echo ""
       ok "API respondendo"
@@ -248,17 +251,24 @@ cmd_install() {
   fi
 
   local api_key
-  if [ "$RESET_KEY" = "1" ] || ! api_key=$(evo_env_get "AUTHENTICATION_APIKEY") || [ -z "$api_key" ]; then
+  api_key=$(evo_env_get "AUTHENTICATION_API_KEY")
+  if [ -z "$api_key" ]; then
+    api_key=$(evo_env_get "AUTHENTICATION_APIKEY")
+  fi
+  if [ "$RESET_KEY" = "1" ] || [ -z "$api_key" ]; then
     api_key=$(openssl rand -hex 32)
+    evo_env_set "AUTHENTICATION_API_KEY" "$api_key"
+    # legado — remover em versões futuras
     evo_env_set "AUTHENTICATION_APIKEY" "$api_key"
     if [ "$RESET_KEY" = "1" ]; then
-      ok "AUTHENTICATION_APIKEY regenerada (--reset-key)"
+      ok "AUTHENTICATION_API_KEY regenerada (--reset-key)"
       warn "ATENÇÃO: tenants managed precisarão ser reprovisionados."
     else
-      ok "AUTHENTICATION_APIKEY gerada (64 hex chars)"
+      ok "AUTHENTICATION_API_KEY gerada (64 hex chars)"
     fi
   else
-    ok "AUTHENTICATION_APIKEY preservada"
+    evo_env_set "AUTHENTICATION_API_KEY" "$api_key"
+    ok "AUTHENTICATION_API_KEY preservada"
   fi
 
   evo_env_set "EVOLUTION_PORT" "$EVO_PORT"
