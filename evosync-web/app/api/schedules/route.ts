@@ -89,9 +89,9 @@ export async function POST(req: NextRequest) {
     ? data.contact_ids
     : [];
 
-  if (contactMode === "current" && contactIds.length === 0) {
+  if (contactIds.length === 0) {
     return jsonError(
-      "Marque contatos em Contatos antes de agendar com seleção atual.",
+      "Marque contatos em Contatos antes de agendar. Nenhum destinatário selecionado.",
       400
     );
   }
@@ -99,11 +99,8 @@ export async function POST(req: NextRequest) {
   let contacts: Schedule["contacts"] = [];
   if (contactMode === "snapshot") {
     const current = listContacts(tenantId!);
-    let source = current.contacts;
-    if (contactIds.length > 0) {
-      const idSet = new Set(contactIds);
-      source = source.filter((c) => idSet.has(c.id));
-    }
+    const idSet = new Set(contactIds);
+    const source = current.contacts.filter((c) => idSet.has(c.id));
     if (source.length) {
       contacts = source.map((c) => ({
         id: c.id,
@@ -119,9 +116,7 @@ export async function POST(req: NextRequest) {
       }));
     } else {
       return jsonError(
-        contactIds.length
-          ? "Nenhum contato selecionado encontrado no catálogo."
-          : "Carregue contatos antes de criar um agendamento congelado.",
+        "Nenhum contato selecionado encontrado no catálogo.",
         400
       );
     }

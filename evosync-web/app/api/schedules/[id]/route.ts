@@ -77,21 +77,24 @@ export async function PUT(
       ? body.selected_contact_ids
       : current.selected_contact_ids || [];
 
+  if (contactIds.length === 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Marque contatos em Contatos antes de agendar. Nenhum destinatário selecionado.",
+      },
+      { status: 400 }
+    );
+  }
+
   let contacts: Schedule["contacts"] | undefined;
   if (contactMode === "snapshot" && body.contacts === undefined) {
     const catalog = listContacts(session.user.tenantId);
-    let source = catalog.contacts;
-    if (contactIds.length > 0) {
-      const idSet = new Set(contactIds);
-      source = source.filter((c) => idSet.has(c.id));
-    }
+    const idSet = new Set(contactIds);
+    const source = catalog.contacts.filter((c) => idSet.has(c.id));
     if (!source.length) {
       return NextResponse.json(
-        {
-          error: contactIds.length
-            ? "Nenhum contato selecionado encontrado no catálogo."
-            : "Catálogo vazio — importe contatos antes de congelar.",
-        },
+        { error: "Nenhum contato selecionado encontrado no catálogo." },
         { status: 400 }
       );
     }

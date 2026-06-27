@@ -50,7 +50,7 @@ import { api } from "@/lib/api";
 import { cn, formatDateTime, onlyDigits } from "@/lib/utils";
 import type { Schedule, ScheduleStatus } from "@/lib/types";
 
-type AgendaContactMode = "snapshot" | "snapshot_selected" | "current";
+type AgendaContactMode = "snapshot_selected" | "current";
 
 function todayDateInput(d = new Date()) {
   return format(d, "dd/MM/yyyy");
@@ -69,7 +69,7 @@ export default function AgendaPage() {
 
   const [date, setDate] = useState(todayDateInput());
   const [time, setTime] = useState(nowTimeInput(addDays(new Date(), 1)));
-  const [contactMode, setContactMode] = useState<AgendaContactMode>("snapshot");
+  const [contactMode, setContactMode] = useState<AgendaContactMode>("snapshot_selected");
   const [message, setMessage] = useState("");
   const [mediaPath, setMediaPath] = useState("");
   const [mediaType, setMediaType] = useState<MediaType>("image");
@@ -100,7 +100,7 @@ export default function AgendaPage() {
   const resetForm = () => {
     setDate(todayDateInput());
     setTime(nowTimeInput(addDays(new Date(), 1)));
-    setContactMode("snapshot");
+    setContactMode("snapshot_selected");
     setMessage("");
     setMediaPath("");
     setMediaType("image");
@@ -126,21 +126,12 @@ export default function AgendaPage() {
         return;
       }
 
-      if (contactMode === "current" && contactSelectedIds.size === 0) {
+      if (contactSelectedIds.size === 0) {
         toast.error(
-          "Marque contatos em Contatos antes de agendar com seleção atual."
+          "Marque contatos em Contatos antes de agendar. Nenhum destinatário selecionado."
         );
         return;
       }
-      if (contactMode === "snapshot_selected" && contactSelectedIds.size === 0) {
-        toast.error("Marque contatos em Contatos antes de congelar a seleção.");
-        return;
-      }
-
-      const snapshotIds =
-        contactMode === "snapshot_selected"
-          ? Array.from(contactSelectedIds)
-          : [];
 
       const payload = {
         scheduled_at: dt.toISOString(),
@@ -149,10 +140,7 @@ export default function AgendaPage() {
         media_type: mediaType,
         contact_mode:
           contactMode === "current" ? ("current" as const) : ("snapshot" as const),
-        contact_ids:
-          contactMode === "current"
-            ? Array.from(contactSelectedIds)
-            : snapshotIds,
+        contact_ids: Array.from(contactSelectedIds),
         delay_min: settings.delay_min,
         delay_max: settings.delay_max,
         daily_limit: settings.daily_limit,
@@ -191,11 +179,7 @@ export default function AgendaPage() {
       setMediaPath(s.media_path);
       setMediaType((s.media_type as MediaType) || "image");
       setContactMode(
-        s.contact_mode === "current"
-          ? "current"
-          : s.selected_contact_ids?.length
-            ? "snapshot_selected"
-            : "snapshot"
+        s.contact_mode === "current" ? "current" : "snapshot_selected"
       );
       setValidateFirst(!!s.validate_first);
       setResendSent(!s.skip_sent_history);
@@ -297,27 +281,29 @@ export default function AgendaPage() {
             </div>
             <div className="col-span-2">
               <Label>Contatos</Label>
-              <Select
-                value={contactMode}
-                onValueChange={(v) => setContactMode(v as AgendaContactMode)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="snapshot">
-                    Congelar catálogo completo
-                  </SelectItem>
-                  {contactSelectedIds.size > 0 && (
+              {contactSelectedIds.size === 0 ? (
+                <p className="mt-2 text-sm text-warn flex items-start gap-2 rounded-md border border-warn/40 bg-warn/5 px-3 py-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  Marque contatos na aba Contatos antes de agendar.
+                </p>
+              ) : (
+                <Select
+                  value={contactMode}
+                  onValueChange={(v) => setContactMode(v as AgendaContactMode)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
                     <SelectItem value="snapshot_selected">
-                      Congelar apenas selecionados ({contactSelectedIds.size})
+                      Congelar selecionados ({contactSelectedIds.size})
                     </SelectItem>
-                  )}
-                  <SelectItem value="current">
-                    Usar seleção atual ({contactSelectedIds.size}) no horário
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                    <SelectItem value="current">
+                      Usar seleção atual ({contactSelectedIds.size}) no horário
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
@@ -358,7 +344,10 @@ export default function AgendaPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 pt-2">
-            <Button onClick={onSave} disabled={submitting}>
+            <Button
+              onClick={onSave}
+              disabled={submitting || contactSelectedIds.size === 0}
+            >
               {submitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
