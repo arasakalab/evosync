@@ -45,7 +45,7 @@ if [ "$UPDATE_ONLY" = "1" ]; then
   cd "$APP_DIR"
   sudo -u "$APP_USER" git pull --ff-only
   cd "$APP_DIR/evosync-web"
-  sudo -u "$APP_USER" npm ci --omit=dev
+  sudo -u "$APP_USER" npm ci
   sudo -u "$APP_USER" npx next build
   systemctl restart evosync
   log "Update concluído. Status: systemctl status evosync"
@@ -91,12 +91,13 @@ if [ ! -d "$APP_DIR" ]; then
   chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 else
   log "$APP_DIR já existe, pulando clone"
+  chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 fi
 
 # === Dependências + build ===
 log "npm ci..."
 cd "$APP_DIR/evosync-web"
-sudo -u "$APP_USER" npm ci --omit=dev
+sudo -u "$APP_USER" npm ci
 
 log "next build..."
 sudo -u "$APP_USER" npx next build
