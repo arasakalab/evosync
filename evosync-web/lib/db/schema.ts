@@ -79,6 +79,22 @@ export const tenants = sqliteTable(
     resendSent: integer("resend_sent", { mode: "boolean" })
       .notNull()
       .default(true),
+    // === Branding da landing pública /c/[slug] (Fase C) ===
+    // Imagens: paths relativos ao UPLOADS_DIR (ex: "branding/<tenantId>/logo.png")
+    logoPath: text("logo_path"),
+    bgImagePath: text("bg_image_path"),
+    faviconPath: text("favicon_path"),
+    // Cores (hex com #). Defaults WhatsApp-ish.
+    primaryColor: text("primary_color").notNull().default("#0F9D58"),
+    accentColor: text("accent_color").notNull().default("#25D366"),
+    bgColor: text("bg_color").notNull().default("#F8FAFC"),
+    fgColor: text("fg_color").notNull().default("#0F172A"),
+    // Font family (CSS): Inter, Roboto, Poppins, System
+    fontFamily: text("font_family").notNull().default("Inter"),
+    // Textos customizados
+    landingTitle: text("landing_title"),
+    landingSubtitle: text("landing_subtitle"),
+    landingUpdatedAt: text("landing_updated_at"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(CURRENT_TIMESTAMP)`),

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Cable, Users, MessageSquare, Send, CalendarClock, Lock } from "lucide-react";
+import { Cable, Users, MessageSquare, Send, CalendarClock, Lock, Palette } from "lucide-react";
 
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
@@ -17,6 +17,7 @@ const navItems = [
   { href: "/mensagem", label: "Mensagem", icon: MessageSquare },
   { href: "/disparo", label: "Disparo", icon: Send },
   { href: "/agenda", label: "Agenda", icon: CalendarClock },
+  { href: "/customizar", label: "Personalizar", icon: Palette },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

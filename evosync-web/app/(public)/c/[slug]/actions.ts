@@ -205,6 +205,6 @@ export async function submitSignup(
   return {
     ok: true,
     maskedNumber: maskNumber(digits),
-    tenantName: tenant.name,
+    tenantName: tenant.landingTitle?.trim() || tenant.name,
   };
 }
