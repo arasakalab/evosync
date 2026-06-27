@@ -21,6 +21,7 @@ import {
   Clock,
   FileWarning,
   Ban,
+  Paperclip,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -110,10 +111,11 @@ export default function DisparoPage() {
     setActing(true);
     try {
       await persistParams();
+      const mediaPath = settings.last_media_path?.trim() || null;
       await api.send.start({
         template: settings.last_message || "",
-        mediaPath: null,
-        mediatype: "image",
+        mediaPath,
+        mediatype: settings.last_media_type || "image",
         delayMin,
         delayMax,
         dailyLimit,
@@ -199,6 +201,18 @@ export default function DisparoPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {settings.last_media_path ? (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-surface-alt/50 px-3 py-2 text-sm text-muted-foreground">
+              <Paperclip className="h-4 w-4 shrink-0 text-primary" />
+              <span>
+                Mídia anexada:{" "}
+                <span className="font-mono text-text/90">
+                  {settings.last_media_path.split(/[\\/]/).pop()}
+                </span>{" "}
+                ({settings.last_media_type || "image"})
+              </span>
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Param
               id="min"

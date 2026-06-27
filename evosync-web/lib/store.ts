@@ -109,6 +109,8 @@ const defaultSettings: Settings = {
   delay_max: 25,
   daily_limit: 200,
   last_message: "",
+  last_media_path: "",
+  last_media_type: "image",
   resend_sent: true,
   slug: "",
   evo_mode: "byo",

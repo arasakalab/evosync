@@ -31,6 +31,8 @@ const defaults: Settings = {
   slug: "",
   daily_limit: 200,
   last_message: "",
+  last_media_path: "",
+  last_media_type: "image",
   resend_sent: true,
   evo_mode: "byo",
   managed_status: null,
@@ -100,6 +102,9 @@ export function loadTenantSettings(tenantId: string): Settings {
   }
 
   const lastMessage = getTenantSetting(tenantId, "last_message") ?? "";
+  const lastMediaPath = getTenantSetting(tenantId, "last_media_path") ?? "";
+  const lastMediaType =
+    getTenantSetting(tenantId, "last_media_type") ?? "image";
 
   let apiKey = "";
   if (tenant.evoApiKeyEncrypted) {
@@ -124,6 +129,8 @@ export function loadTenantSettings(tenantId: string): Settings {
     delay_max: tenant.delayMax,
     daily_limit: tenant.dailyLimit,
     last_message: lastMessage || defaults.last_message,
+    last_media_path: lastMediaPath,
+    last_media_type: lastMediaType || "image",
     resend_sent: tenant.resendSent,
     slug: tenant.slug,
     evo_mode: tenant.evoMode || "byo",
@@ -178,6 +185,12 @@ export function saveTenantSettings(tenantId: string, s: Settings): Settings {
   // last_message vai em tenant_settings (k/v)
   if (s.last_message !== undefined) {
     setTenantSetting(tenantId, "last_message", s.last_message);
+  }
+  if (s.last_media_path !== undefined) {
+    setTenantSetting(tenantId, "last_media_path", s.last_media_path);
+  }
+  if (s.last_media_type !== undefined) {
+    setTenantSetting(tenantId, "last_media_type", s.last_media_type);
   }
 
   // Retorna o estado atual descriptografado

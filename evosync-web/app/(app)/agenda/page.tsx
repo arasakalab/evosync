@@ -30,6 +30,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import {
+  MediaAttachmentField,
+  type MediaType,
+} from "@/components/media-attachment-field";
 import { StatusBadge } from "@/components/status-badge";
 import {
   AlertDialog,
@@ -66,7 +70,7 @@ export default function AgendaPage() {
   const [contactMode, setContactMode] = useState<"snapshot" | "current">("snapshot");
   const [message, setMessage] = useState("");
   const [mediaPath, setMediaPath] = useState("");
-  const [mediaType, setMediaType] = useState("image");
+  const [mediaType, setMediaType] = useState<MediaType>("image");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
@@ -91,7 +95,9 @@ export default function AgendaPage() {
 
   const copyCurrentMessage = () => {
     setMessage(settings.last_message || "");
-    toast.success("Mensagem atual copiada para a agenda");
+    setMediaPath(settings.last_media_path || "");
+    setMediaType((settings.last_media_type as MediaType) || "image");
+    toast.success("Mensagem e mídia atuais copiadas para a agenda");
   };
 
   const resetForm = () => {
@@ -173,7 +179,7 @@ export default function AgendaPage() {
       setTime(format(d, "HH:mm"));
       setMessage(s.message);
       setMediaPath(s.media_path);
-      setMediaType(s.media_type || "image");
+      setMediaType((s.media_type as MediaType) || "image");
       setContactMode(s.contact_mode);
       setValidateFirst(!!s.validate_first);
       setResendSent(!s.skip_sent_history);
@@ -304,28 +310,15 @@ export default function AgendaPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="md:col-span-2">
-              <Label>Mídia (opcional)</Label>
-              <Input
-                value={mediaPath}
-                onChange={(e) => setMediaPath(e.target.value)}
-                placeholder="caminho do arquivo..."
-                className="font-mono"
+          <div>
+            <Label>Mídia (opcional)</Label>
+            <div className="mt-2">
+              <MediaAttachmentField
+                mediaPath={mediaPath}
+                mediaType={mediaType}
+                onMediaPathChange={setMediaPath}
+                onMediaTypeChange={setMediaType}
               />
-            </div>
-            <div>
-              <Label>Tipo de mídia</Label>
-              <Select value={mediaType} onValueChange={setMediaType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="image">image</SelectItem>
-                  <SelectItem value="video">video</SelectItem>
-                  <SelectItem value="document">document</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
 

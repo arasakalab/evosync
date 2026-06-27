@@ -4,19 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import {
   MessageSquare,
   Sparkles,
-  Image as ImageIcon,
-  FileText,
   Eye,
   Loader2,
-  X,
   Info,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -24,17 +19,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  MediaAttachmentField,
+  type MediaType,
+} from "@/components/media-attachment-field";
 import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
-import { formatTime } from "@/lib/utils";
 
 export default function MensagemPage() {
   const settings = useAppStore((s) => s.settings);
@@ -42,21 +33,31 @@ export default function MensagemPage() {
   const contacts = useAppStore((s) => s.contacts);
 
   const [template, setTemplate] = useState(settings.last_message || "");
-  const [mediaPath, setMediaPath] = useState("");
-  const [mediaType, setMediaType] = useState("image");
+  const [mediaPath, setMediaPath] = useState(settings.last_media_path || "");
+  const [mediaType, setMediaType] = useState<MediaType>(
+    (settings.last_media_type as MediaType) || "image"
+  );
   const [previewText, setPreviewText] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastFileRef = useRef<File | null>(null);
 
-  // mantém settings.last_message sincronizado ao montar
   useEffect(() => {
     setTemplate(settings.last_message || "");
-  }, [settings.last_message]);
+    setMediaPath(settings.last_media_path || "");
+    setMediaType((settings.last_media_type as MediaType) || "image");
+  }, [
+    settings.last_message,
+    settings.last_media_path,
+    settings.last_media_type,
+  ]);
 
-  const persistMessage = async (text: string) => {
+  const persistSettings = async (patch: {
+    last_message?: string;
+    last_media_path?: string;
+    last_media_type?: string;
+  }) => {
     try {
-      const next = { ...settings, last_message: text };
+      const next = { ...settings, ...patch };
       const saved = await api.settings.save(next);
       setSettings(saved);
     } catch {
@@ -74,16 +75,15 @@ export default function MensagemPage() {
     setPreviewText(`Pré-visualização para ${c.number}:\n\n${r.rendered}`);
   };
 
-  const onPickMedia = (file: File) => {
-    setUploading(true);
-    api.upload
-      .media(file)
-      .then((r) => {
-        setMediaPath(r.path);
-        toast.success(`Mídia selecionada: ${r.name}`);
-      })
-      .catch((e) => toast.error(e?.message || "Falha no upload"))
-      .finally(() => setUploading(false));
+  const onMediaPathChange = (path: string) => {
+    setMediaPath(path);
+    if (!path) lastFileRef.current = null;
+    void persistSettings({ last_media_path: path });
+  };
+
+  const onMediaTypeChange = (type: MediaType) => {
+    setMediaType(type);
+    void persistSettings({ last_media_type: type });
   };
 
   const onGenerateOpencode = async () => {
@@ -93,12 +93,7 @@ export default function MensagemPage() {
     }
     setGenerating(true);
     try {
-      const r = await fetch(mediaPath);
-      if (!r.ok) {
-        // servidor não serve o arquivo; tenta puxar via upload novamente
-      }
-      // Pega o arquivo via input file novamente
-      const f = fileInputRef.current?.files?.[0];
+      const f = lastFileRef.current;
       if (!f) {
         toast.error("Selecione o arquivo novamente para o OpenCode.");
         return;
@@ -109,7 +104,7 @@ export default function MensagemPage() {
         return;
       }
       setTemplate(res.text || "");
-      await persistMessage(res.text || "");
+      await persistSettings({ last_message: res.text || "" });
       setPreviewText("");
       toast.success("Texto gerado pelo OpenCode. Revise antes de disparar.");
     } catch (e: any) {
@@ -118,8 +113,6 @@ export default function MensagemPage() {
       setGenerating(false);
     }
   };
-
-  const mediaName = mediaPath ? mediaPath.split(/[\\/]/).pop() : null;
 
   return (
     <div className="space-y-6">
@@ -144,7 +137,7 @@ export default function MensagemPage() {
           <Textarea
             value={template}
             onChange={(e) => setTemplate(e.target.value)}
-            onBlur={() => persistMessage(template)}
+            onBlur={() => persistSettings({ last_message: template })}
             placeholder="Escreva sua mensagem aqui. Use {nome}, {empresa}..."
             className="min-h-[230px] text-sm leading-relaxed"
           />
@@ -158,73 +151,19 @@ export default function MensagemPage() {
             <Badge variant="muted" className="font-normal">opcional</Badge>
           </CardTitle>
           <CardDescription>
-            Imagem, vídeo ou PDF enviado junto com a mensagem.
+            Imagem, vídeo ou PDF enviado junto com a mensagem no Disparo.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex flex-col md:flex-row gap-2">
-            <div className="flex-1">
-              <Label htmlFor="media-path">Caminho do arquivo</Label>
-              <Input
-                id="media-path"
-                value={mediaPath}
-                onChange={(e) => setMediaPath(e.target.value)}
-                placeholder="/caminho/para/imagem.jpg"
-                className="font-mono"
-              />
-            </div>
-            <div className="md:w-44">
-              <Label>Tipo</Label>
-              <Select value={mediaType} onValueChange={setMediaType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="image">image</SelectItem>
-                  <SelectItem value="video">video</SelectItem>
-                  <SelectItem value="document">document</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) onPickMedia(f);
-                  e.target.value = "";
-                }}
-              />
-              <Button
-                variant="neutral"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-              >
-                {uploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ImageIcon className="h-4 w-4" />
-                )}
-                Escolher arquivo
-              </Button>
-            </div>
-          </div>
-          {mediaName && (
-            <div className="flex items-center gap-2 text-sm text-muted">
-              <FileText className="h-4 w-4" />
-              <span className="font-mono">{mediaName}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setMediaPath("")}
-                className="h-6 px-2"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
+          <MediaAttachmentField
+            mediaPath={mediaPath}
+            mediaType={mediaType}
+            onMediaPathChange={onMediaPathChange}
+            onMediaTypeChange={onMediaTypeChange}
+            onFileSelected={(file) => {
+              lastFileRef.current = file;
+            }}
+          />
 
           <div className="flex flex-wrap items-center gap-2 pt-2">
             <Button variant="blue" onClick={onPreview}>
@@ -262,11 +201,10 @@ export default function MensagemPage() {
       <div className="flex items-start gap-2 rounded-md border border-border bg-panel-alt/50 p-3 text-xs text-muted">
         <Info className="h-4 w-4 mt-0.5 shrink-0" />
         <p>
-          O OpenCode IA envia a mídia para{" "}
-          <code className="text-text/80">opencode run --file</code> e usa o modelo
-          configurado em <strong>Conexão</strong> (ou{" "}
-          <code className="text-text/80">nvidia/meta/llama-3.2-90b-vision-instruct</code>{" "}
-          por padrão). Sempre revise o texto gerado antes de iniciar o disparo.
+          A mídia selecionada aqui é usada automaticamente na aba{" "}
+          <strong>Disparo</strong>. O OpenCode IA envia o arquivo para{" "}
+          <code className="text-text/80">opencode run --file</code> e usa o
+          modelo configurado em <strong>Conexão</strong>.
         </p>
       </div>
     </div>

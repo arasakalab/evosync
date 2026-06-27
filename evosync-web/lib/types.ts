@@ -73,6 +73,8 @@ export interface Settings {
   delay_max: number;
   daily_limit: number;
   last_message: string;
+  last_media_path: string;
+  last_media_type: string;
   resend_sent: boolean;
   // Slug público do tenant — usado pra construir o link de cadastro
   // da landing /c/[slug] (Fase C).
