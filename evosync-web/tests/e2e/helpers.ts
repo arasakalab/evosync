@@ -117,6 +117,12 @@ export async function waitForSelectionCount(
           const m = txt.match(/(\d+)/);
           return m ? Number(m[1]) : -1;
         }
+        const mobileEnvio = page.locator('a[href*="panel=send"] span.font-semibold').first();
+        if (await mobileEnvio.isVisible().catch(() => false)) {
+          const txt = (await mobileEnvio.textContent()) ?? "";
+          const m = txt.match(/(\d+)/);
+          return m ? Number(m[1]) : -1;
+        }
         return -1;
       },
       { timeout: 10_000 }

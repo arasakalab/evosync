@@ -90,11 +90,6 @@ export default function AgendaPage() {
     }
   };
 
-  useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setSchedules]);
-
   const copyCurrentMessage = () => {
     setMessage(settings.last_message || "");
     setMediaPath(settings.last_media_path || "");
@@ -390,14 +385,14 @@ export default function AgendaPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between space-y-0">
           <div>
             <CardTitle className="text-base">Agendamentos</CardTitle>
             <CardDescription>
               {ordered.length} mensagem(ns) · {ordered.filter((s) => s.status === "pending").length} pendente(s)
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="neutral"
               size="sm"

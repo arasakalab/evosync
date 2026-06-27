@@ -350,7 +350,7 @@ export default function DisparoPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         <Counter
           icon={<CheckCheck className="h-4 w-4" />}
           label="Enviados"
@@ -392,7 +392,7 @@ export default function DisparoPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between space-y-0">
           <div>
             <CardTitle className="text-base">Log</CardTitle>
             <CardDescription>

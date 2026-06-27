@@ -36,6 +36,7 @@ interface AppState {
   // Selection (FASE 5) — Set de IDs selecionados para envio
   selectedIds: Set<string>;
   selectionLoaded: boolean; // true após primeira sincronização com backend
+  selectionDirty: boolean; // true enquanto há alterações locais ainda não persistidas
 
   // Listas de contatos (FASE 5)
   contactLists: ContactList[];
@@ -52,6 +53,9 @@ interface AppState {
   // Schedules
   schedules: Schedule[];
 
+  // Histórico de envios (badge header)
+  sentHistoryCount: number;
+
   // Setters
   setConnection: (c: AppState["connection"]) => void;
   setContacts: (contacts: Contact[], counts?: { count: number; filteredCount: number }) => void;
@@ -66,6 +70,8 @@ interface AppState {
   selectMany: (ids: string[], selected?: boolean) => void;
   clearSelection: () => void;
   setSelectionLoaded: (loaded: boolean) => void;
+  markSelectionDirty: () => void;
+  markSelectionSynced: () => void;
 
   // Lists
   setContactLists: (lists: ContactList[]) => void;
@@ -78,6 +84,7 @@ interface AppState {
   setSettings: (s: Settings) => void;
   setSchedules: (s: Schedule[]) => void;
   updateSchedule: (id: string, patch: Partial<Schedule>) => void;
+  setSentHistoryCount: (n: number) => void;
 }
 
 const MAX_LOGS = 500;
@@ -129,11 +136,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   contactsSearch: "",
   selectedIds: new Set<string>(),
   selectionLoaded: false,
+  selectionDirty: false,
   contactLists: [],
   status: defaultStatus,
   logs: [],
   settings: defaultSettings,
   schedules: [],
+  sentHistoryCount: 0,
 
   setConnection: (c) => set({ connection: c }),
 
@@ -154,7 +163,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const next = new Set(get().selectedIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    set({ selectedIds: next });
+    set({ selectedIds: next, selectionDirty: true });
   },
   selectMany: (ids, selected = true) => {
     const next = new Set(get().selectedIds);
@@ -162,10 +171,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (selected) next.add(id);
       else next.delete(id);
     }
-    set({ selectedIds: next });
+    set({ selectedIds: next, selectionDirty: true });
   },
-  clearSelection: () => set({ selectedIds: new Set() }),
+  clearSelection: () => set({ selectedIds: new Set(), selectionDirty: true }),
   setSelectionLoaded: (loaded) => set({ selectionLoaded: loaded }),
+  markSelectionDirty: () => set({ selectionDirty: true }),
+  markSelectionSynced: () => set({ selectionDirty: false }),
 
   setContactLists: (lists) => set({ contactLists: lists }),
   upsertContactList: (list) => {
@@ -195,4 +206,5 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       schedules: s.schedules.map((x) => (x.id === id ? { ...x, ...patch } : x)),
     })),
+  setSentHistoryCount: (sentHistoryCount) => set({ sentHistoryCount }),
 }));

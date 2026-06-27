@@ -4,8 +4,8 @@
  * Card exibido na aba Conexão quando o tenant está em modo managed.
  *
  * Comportamento:
- *  - Polling do QR a cada 2s (ciclo rápido — o QR expira em 30s no cache)
- *  - Polling do status a cada 5s (mais lento, só pra detectar conexão)
+ *  - Polling do QR a cada 2s quando status === ready (QR expira rápido)
+ *  - Status de conexão vem do sync global (app-shell, 5s + WS)
  *  - Estados visuais:
  *      pending (instância não existe) → mensagem pedindo pro admin provisionar
  *      provisioning → spinner
@@ -110,62 +110,55 @@ const STATUS_COPY: Record<
 };
 
 export default function ManagedConnectionCard() {
-  const [status, setStatus] = useState<ConnectionStatus | null>(null);
   const [qr, setQr] = useState<QrResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const cancelled = useRef(false);
+  const prevManagedStatus = useRef<string | null>(null);
 
-  // Store global — quando status mudar, propaga o managed_status pra cá
-  // pra que o AppShell reavalie o guard e libere o menu lateral
-  // automaticamente (sem precisar F5).
+  const selectionLoaded = useAppStore((s) => s.selectionLoaded);
+  const connection = useAppStore((s) => s.connection);
+  const managedStatus = useAppStore((s) => s.settings.managed_status);
+  const managedError = useAppStore((s) => s.settings.managed_error);
   const setSettings = useAppStore((s) => s.setSettings);
-  const setConnection = useAppStore((s) => s.setConnection);
-  const currentManagedStatus = useAppStore(
-    (s) => s.settings.managed_status
-  );
+
+  const status: ConnectionStatus | null = selectionLoaded
+    ? {
+        ok: connection.ok,
+        state: connection.state ?? null,
+        mode: "managed",
+        managedStatus: managedStatus,
+        error: managedError || (connection.msg !== "—" ? connection.msg : null),
+      }
+    : null;
+
+  useEffect(() => {
+    if (
+      prevManagedStatus.current === "ready" &&
+      managedStatus === "connected"
+    ) {
+      toast.success("WhatsApp conectado! Menu liberado.");
+    }
+    prevManagedStatus.current = managedStatus;
+  }, [managedStatus]);
 
   const fetchStatus = useCallback(async () => {
-    try {
-      const s = await api.connection.status();
-      setStatus(s);
-      setConnection({
-        ok: s.ok,
-        state: s.state,
-        msg: s.error || (s.ok ? "Conectado" : "Desconectado"),
-        checkedAt: new Date().toISOString(),
-      });
-
-      // Propaga o managed_status pro store global SE mudou.
-      // Isso desbloqueia o menu lateral automaticamente quando o
-      // usuário escaneia o QR e o status vai de "ready" → "connected".
-      if (s.managedStatus && s.managedStatus !== currentManagedStatus) {
-        // Pega settings atual e faz merge parcial
-        const current = useAppStore.getState().settings;
-        setSettings({ ...current, managed_status: s.managedStatus });
-        // Feedback visual
-        if (s.managedStatus === "connected") {
-          toast.success("WhatsApp conectado! Menu liberado.");
-        }
-      }
-    } catch (e: any) {
-      setStatus({
-        ok: false,
-        state: null,
-        mode: "managed",
-        managedStatus: "failed",
-        error: e?.message || "Erro",
-      });
-    } finally {
-      setLoading(false);
+    const s = await api.connection.status();
+    if (s.managedStatus) {
+      const current = useAppStore.getState().settings;
+      setSettings({ ...current, managed_status: s.managedStatus });
     }
-  }, [currentManagedStatus, setSettings, setConnection]);
+    useAppStore.getState().setConnection({
+      ok: s.ok,
+      state: s.state,
+      msg: s.error || (s.ok ? "Conectado" : "Desconectado"),
+      checkedAt: new Date().toISOString(),
+    });
+    return s;
+  }, [setSettings]);
 
   const fetchQr = useCallback(async () => {
-    // Só busca QR se estiver em "ready" (instância existe, aguardando pareamento)
-    const current = status?.managedStatus;
-    if (current !== "ready") return;
+    if (managedStatus !== "ready") return;
     try {
       const q = await api.connection.qr();
       setQr(q);
@@ -174,30 +167,21 @@ export default function ManagedConnectionCard() {
       // Silencioso — vai tentar de novo no próximo poll
       console.warn("QR fetch falhou:", e?.message);
     }
-  }, [status?.managedStatus]);
+  }, [managedStatus]);
 
-  // Polling de status a cada 5s
+  // QR polling quando aguardando pareamento (status vem do sync global)
   useEffect(() => {
     cancelled.current = false;
-    fetchStatus();
-    const id = setInterval(() => {
-      if (!cancelled.current) fetchStatus();
-    }, 5000);
-    return () => {
-      cancelled.current = true;
-      clearInterval(id);
-    };
-  }, [fetchStatus]);
-
-  // Polling de QR a cada 2s — só ativo quando status === "ready"
-  useEffect(() => {
-    if (status?.managedStatus !== "ready") return;
+    if (managedStatus !== "ready") return;
     fetchQr();
     const id = setInterval(() => {
       if (!cancelled.current) fetchQr();
     }, 2000);
-    return () => clearInterval(id);
-  }, [status?.managedStatus, fetchQr]);
+    return () => {
+      cancelled.current = true;
+      clearInterval(id);
+    };
+  }, [managedStatus, fetchQr]);
 
   // Countdown do cache
   useEffect(() => {
@@ -242,7 +226,7 @@ export default function ManagedConnectionCard() {
     }
   };
 
-  if (loading || !status) {
+  if (!status) {
     return (
       <Card>
         <CardContent className="p-8 flex items-center justify-center">
@@ -330,10 +314,10 @@ export default function ManagedConnectionCard() {
                     <img
                       src={qr.qr.base64}
                       alt="QR Code WhatsApp"
-                      className="h-64 w-64"
+                      className="w-full max-w-[16rem] h-auto aspect-square object-contain"
                     />
                   ) : (
-                    <div className="h-64 w-64 flex items-center justify-center text-muted-foreground">
+                    <div className="w-full max-w-[16rem] aspect-square flex items-center justify-center text-muted-foreground">
                       <Loader2 className="h-6 w-6 animate-spin" />
                     </div>
                   )}

@@ -51,7 +51,7 @@ export function BulkActionBar({
       <Button variant="danger" size="sm" onClick={onDeleteSelection}>
         <X className="h-3.5 w-3.5" /> Remover
       </Button>
-      <div className="ml-auto">
+      <div className="w-full sm:ml-auto sm:w-auto flex justify-end">
         <Button variant="ghost" size="sm" onClick={onClearSelection}>
           Limpar seleção
         </Button>

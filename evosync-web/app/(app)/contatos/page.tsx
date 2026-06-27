@@ -122,34 +122,6 @@ export default function ContatosPage() {
     }
   };
 
-  // Carrega a lista inicial (catálogo) e hidrata listas
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await api.contacts.list();
-        setContacts(r.contacts, { count: r.count, filteredCount: r.filteredCount });
-      } catch {
-        /* silencioso */
-      }
-      try {
-        const lists = await api.contactLists.list();
-        setContactLists(lists);
-      } catch {
-        /* silencioso */
-      }
-      // Carrega seleção persistida
-      try {
-        const sel = await api.contacts.getSelection();
-        setSelectedIds(sel.ids);
-      } catch {
-        /* silencioso */
-      } finally {
-        useAppStore.getState().setSelectionLoaded(true);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Refetch quando filtros/modo mudam
   useEffect(() => {
     if (!selectionLoaded) return;
@@ -175,6 +147,7 @@ export default function ContatosPage() {
     const t = setTimeout(() => {
       api.contacts
         .setSelection(Array.from(selectedIds))
+        .then(() => useAppStore.getState().markSelectionSynced())
         .catch(() => {
           /* silencioso — seleção é otimista */
         });
@@ -421,13 +394,13 @@ export default function ContatosPage() {
       {/* Busca */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center gap-3">
-            <Search className="h-4 w-4 text-muted" />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <Search className="h-4 w-4 text-muted shrink-0 hidden sm:block" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Pesquisar por nome, número ou campo extra..."
-              className="flex-1"
+              className="flex-1 min-w-0"
             />
             {search && (
               <Button
@@ -468,7 +441,7 @@ export default function ContatosPage() {
       {/* Tabela */}
       <Card>
         <CardContent className="p-0">
-          <div className="flex items-center justify-between border-b border-border px-4 py-2.5 text-xs text-muted">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border px-4 py-2.5 text-xs text-muted">
             <div>
               {contactsCount === 0
                 ? "Nenhum contato carregado. Importe um CSV, busque no WhatsApp ou adicione manualmente."
