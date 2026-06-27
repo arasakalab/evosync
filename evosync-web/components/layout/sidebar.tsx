@@ -88,8 +88,12 @@ export function Sidebar({
         })}
       </nav>
       <div className="border-t border-border p-4 text-2xs leading-relaxed text-muted-foreground">
-        <p>Disparador via Evolution API.</p>
-        <p className="mt-1 text-muted-foreground/70">Uso local · chmod 600 nas credenciais</p>
+        <p className="font-medium text-foreground/70">
+          Plataforma profissional de campanhas
+        </p>
+        <p className="mt-1 uppercase tracking-widest text-muted-foreground/70">
+          by Arasaka Lab
+        </p>
       </div>
     </aside>
   );
