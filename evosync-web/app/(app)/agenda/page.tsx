@@ -50,6 +50,8 @@ import { api } from "@/lib/api";
 import { cn, formatDateTime, onlyDigits } from "@/lib/utils";
 import type { Schedule, ScheduleStatus } from "@/lib/types";
 
+type AgendaContactMode = "snapshot" | "snapshot_selected" | "current";
+
 function todayDateInput(d = new Date()) {
   return format(d, "dd/MM/yyyy");
 }
@@ -67,7 +69,7 @@ export default function AgendaPage() {
 
   const [date, setDate] = useState(todayDateInput());
   const [time, setTime] = useState(nowTimeInput(addDays(new Date(), 1)));
-  const [contactMode, setContactMode] = useState<"snapshot" | "current">("snapshot");
+  const [contactMode, setContactMode] = useState<AgendaContactMode>("snapshot");
   const [message, setMessage] = useState("");
   const [mediaPath, setMediaPath] = useState("");
   const [mediaType, setMediaType] = useState<MediaType>("image");
@@ -129,20 +131,33 @@ export default function AgendaPage() {
         return;
       }
 
+      if (contactMode === "current" && contactSelectedIds.size === 0) {
+        toast.error(
+          "Marque contatos em Contatos antes de agendar com seleção atual."
+        );
+        return;
+      }
+      if (contactMode === "snapshot_selected" && contactSelectedIds.size === 0) {
+        toast.error("Marque contatos em Contatos antes de congelar a seleção.");
+        return;
+      }
+
+      const snapshotIds =
+        contactMode === "snapshot_selected"
+          ? Array.from(contactSelectedIds)
+          : [];
+
       const payload = {
-        // Preserva o "Z" para garantir que a string seja interpretada como UTC
-        // em qualquer ponto de leitura. Sem o Z, parseISO trata como horário
-        // local, deslocando o disparo conforme o fuso do cliente.
         scheduled_at: dt.toISOString(),
         message: message.trim(),
         media_path: mediaPath.trim(),
         media_type: mediaType,
-        contact_mode: contactMode,
-        // FASE 5: envia contactIds no modo current (congelado no agendamento)
+        contact_mode:
+          contactMode === "current" ? ("current" as const) : ("snapshot" as const),
         contact_ids:
-          contactMode === "current" && contactSelectedIds.size > 0
+          contactMode === "current"
             ? Array.from(contactSelectedIds)
-            : [],
+            : snapshotIds,
         delay_min: settings.delay_min,
         delay_max: settings.delay_max,
         daily_limit: settings.daily_limit,
@@ -180,7 +195,13 @@ export default function AgendaPage() {
       setMessage(s.message);
       setMediaPath(s.media_path);
       setMediaType((s.media_type as MediaType) || "image");
-      setContactMode(s.contact_mode);
+      setContactMode(
+        s.contact_mode === "current"
+          ? "current"
+          : s.selected_contact_ids?.length
+            ? "snapshot_selected"
+            : "snapshot"
+      );
       setValidateFirst(!!s.validate_first);
       setResendSent(!s.skip_sent_history);
       setEditingId(s.id);
@@ -283,15 +304,20 @@ export default function AgendaPage() {
               <Label>Contatos</Label>
               <Select
                 value={contactMode}
-                onValueChange={(v) => setContactMode(v as "snapshot" | "current")}
+                onValueChange={(v) => setContactMode(v as AgendaContactMode)}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="snapshot">
-                    Congelar contatos atuais
+                    Congelar catálogo completo
                   </SelectItem>
+                  {contactSelectedIds.size > 0 && (
+                    <SelectItem value="snapshot_selected">
+                      Congelar apenas selecionados ({contactSelectedIds.size})
+                    </SelectItem>
+                  )}
                   <SelectItem value="current">
                     Usar seleção atual ({contactSelectedIds.size}) no horário
                   </SelectItem>

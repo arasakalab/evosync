@@ -51,17 +51,10 @@ export async function POST(req: NextRequest) {
   const validateFirst = v.validateFirst ?? true;
   const skipSentHistory = v.skipSentHistory ?? true;
 
-  // FASE 3: filtra por contactIds (se fornecido) no SQL. opt_out é
-  // checado adicionalmente no SenderRunner por segurança.
-  const listResult = listContacts(
-    tenantId!,
-    v.contactIds && v.contactIds.length
-      ? { mode: "selected" }
-      : undefined
-  );
+  // Filtra diretamente do catálogo pelos IDs do payload (fonte única no client).
+  const listResult = listContacts(tenantId!);
   let contacts: Contact[] = listResult.contacts;
   if (v.contactIds && v.contactIds.length) {
-    // Filtro extra de segurança: garante intersection exata.
     const idSet = new Set(v.contactIds);
     contacts = contacts.filter((c) => idSet.has(c.id));
   }

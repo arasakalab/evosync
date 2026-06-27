@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { SendStateBadge } from "@/components/status-badge";
@@ -50,12 +51,13 @@ export function Header() {
           <span className="text-muted-foreground">Catálogo:</span>
           <span className="font-semibold text-foreground tabular-nums">{contactsCount}</span>
         </div>
-        {selectedIds.size > 0 && (
-          <div className="hidden md:flex items-center gap-2 rounded-lg border border-primary/40 bg-primary-subtle px-3 py-1.5 text-xs">
-            <span className="text-primary">Selecionados:</span>
-            <span className="font-semibold text-primary tabular-nums">{selectedIds.size}</span>
-          </div>
-        )}
+        <Link
+          href="/contatos?panel=send"
+          className="hidden md:flex items-center gap-2 rounded-lg border border-primary/40 bg-primary-subtle px-3 py-1.5 text-xs hover:bg-primary/10 transition-colors"
+        >
+          <span className="text-primary">Para envio:</span>
+          <span className="font-semibold text-primary tabular-nums">{selectedIds.size}</span>
+        </Link>
         <div className="hidden md:flex items-center gap-2 rounded-lg border border-border bg-surface/60 px-3 py-1.5 text-xs">
           <History className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-muted-foreground">Histórico:</span>

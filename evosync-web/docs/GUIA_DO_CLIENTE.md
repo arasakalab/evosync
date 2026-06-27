@@ -132,10 +132,10 @@ Exemplo de planilha (`clientes.csv`):
 Sua lista fica salva na nuvem. Para facilitar, você pode:
 
 - **Buscar** — use a barra de pesquisa para achar alguém por nome, número ou qualquer campo.
-- **Filtrar por modo** (botões no topo):
-  - **Todos** — mostra todo mundo.
-  - **Selecionados** — só quem você marcou para a próxima campanha.
+- **Filtrar por modo** (botões no catálogo):
+  - **Todos** — mostra todo o catálogo.
   - **Opt-out** — só quem pediu para não receber mensagens (LGPD).
+- **Painel "Para envio"** — mostra quantos contatos estão marcados para a próxima campanha. Use **Ver selecionados** para filtrar só os marcados.
 - **Filtrar por tag** — agrupar por etiquetas como "vip", "lead-quente" etc.
 - **Filtrar por lista** — criar listas nomeadas, tipo "Black Friday" ou "São Paulo".
 
@@ -149,8 +149,10 @@ Existem **dois conceitos importantes** que separemos para você:
 Para selecionar:
 
 1. Clique na linha do contato (ou marque o quadradinho ☐ no início da linha).
-2. A linha fica destacada. O contador no topo mostra quantos você selecionou.
-3. Use o botão **Selecionar visíveis** para marcar todos que estão aparecendo na tela de uma vez.
+2. A linha fica destacada. O painel **Para envio** e o badge no topo mostram quantos estão marcados.
+3. Use **Selecionar visíveis** para marcar todos que aparecem na tela (opt-out não pode ser marcado).
+
+**Fluxo recomendado:** importar → marcar em Contatos → ir para Disparo. Desmarcados **nunca** recebem, independente da aba ativa.
 
 > A seleção fica salva na nuvem. Você pode fechar o navegador e voltar depois que ela continua lá.
 

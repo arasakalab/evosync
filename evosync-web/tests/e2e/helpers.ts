@@ -71,15 +71,22 @@ export async function waitForContactsCount(
   page: Page,
   expected: number
 ): Promise<void> {
-  // Poll o badge do header até o count bater.
-  // Lê "X contatos" ou "X/Y contatos" (modo com filtro) e extrai o número.
   await expect
     .poll(
       async () => {
-        const badge = page.locator("span", { hasText: /contatos/ }).first();
-        const txt = (await badge.textContent()) ?? "";
-        const m = txt.match(/(\d+)/);
-        return m ? Number(m[1]) : -1;
+        const pageBadge = page.locator('span', { hasText: /no catálogo/i }).first();
+        if (await pageBadge.isVisible().catch(() => false)) {
+          const txt = (await pageBadge.textContent()) ?? "";
+          const m = txt.match(/(\d+)/);
+          return m ? Number(m[1]) : -1;
+        }
+        const headerBadge = page.locator('span:text-is("Catálogo:") + span').first();
+        if (await headerBadge.isVisible().catch(() => false)) {
+          const txt = (await headerBadge.textContent()) ?? "";
+          const m = txt.match(/(\d+)/);
+          return m ? Number(m[1]) : -1;
+        }
+        return -1;
       },
       { timeout: 15_000 }
     )
@@ -87,7 +94,7 @@ export async function waitForContactsCount(
 }
 
 /**
- * Espera o badge "X selecionado(s)" do header mostrar o valor esperado.
+ * Espera o badge "X para envio" do header mostrar o valor esperado.
  */
 export async function waitForSelectionCount(
   page: Page,
@@ -96,12 +103,21 @@ export async function waitForSelectionCount(
   await expect
     .poll(
       async () => {
-        const badge = page
-          .locator("span", { hasText: /selecionado/ })
+        const pageBadge = page
+          .locator('span', { hasText: /^\d+ para envio$/i })
           .first();
-        const txt = (await badge.textContent()) ?? "";
-        const m = txt.match(/(\d+)/);
-        return m ? Number(m[1]) : -1;
+        if (await pageBadge.isVisible().catch(() => false)) {
+          const txt = (await pageBadge.textContent()) ?? "";
+          const m = txt.match(/(\d+)/);
+          return m ? Number(m[1]) : -1;
+        }
+        const headerBadge = page.locator('span:text-is("Para envio:") + span').first();
+        if (await headerBadge.isVisible().catch(() => false)) {
+          const txt = (await headerBadge.textContent()) ?? "";
+          const m = txt.match(/(\d+)/);
+          return m ? Number(m[1]) : -1;
+        }
+        return -1;
       },
       { timeout: 10_000 }
     )
@@ -118,10 +134,15 @@ export async function waitForOptOutCount(
   await expect
     .poll(
       async () => {
-        const badge = page.locator("span", { hasText: /opt-out/ }).first();
-        const txt = (await badge.textContent()) ?? "";
-        const m = txt.match(/(\d+)/);
-        return m ? Number(m[1]) : -1;
+        const pageBadge = page
+          .locator('span', { hasText: /^\d+ opt-out$/i })
+          .first();
+        if (await pageBadge.isVisible().catch(() => false)) {
+          const txt = (await pageBadge.textContent()) ?? "";
+          const m = txt.match(/(\d+)/);
+          return m ? Number(m[1]) : -1;
+        }
+        return -1;
       },
       { timeout: 10_000 }
     )
@@ -151,18 +172,12 @@ export async function clearAllContacts(page: Page): Promise<void> {
   } catch {
     /* idem */
   }
-  // Espera o count ir pra 0 (polling do badge)
-  await expect
-    .poll(
-      async () => {
-        const badge = page.locator("span", { hasText: "contatos" }).first();
-        const txt = (await badge.textContent()) ?? "";
-        const m = txt.match(/(\d+)/);
-        return m ? Number(m[1]) : -1;
-      },
-      { timeout: 10_000 }
-    )
-    .toBe(0);
+  await page.reload();
+  await waitForContactsCount(page, 0);
+  const todosBtn = page.locator('button:has-text("Todos")').first();
+  if (await todosBtn.isVisible().catch(() => false)) {
+    await todosBtn.click();
+  }
 }
 
 /**

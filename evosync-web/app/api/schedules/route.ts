@@ -89,12 +89,23 @@ export async function POST(req: NextRequest) {
     ? data.contact_ids
     : [];
 
+  if (contactMode === "current" && contactIds.length === 0) {
+    return jsonError(
+      "Marque contatos em Contatos antes de agendar com seleção atual.",
+      400
+    );
+  }
+
   let contacts: Schedule["contacts"] = [];
   if (contactMode === "snapshot") {
     const current = listContacts(tenantId!);
-    if (current.contacts.length) {
-      // Snapshot = catálogo completo no momento do agendamento
-      contacts = current.contacts.map((c) => ({
+    let source = current.contacts;
+    if (contactIds.length > 0) {
+      const idSet = new Set(contactIds);
+      source = source.filter((c) => idSet.has(c.id));
+    }
+    if (source.length) {
+      contacts = source.map((c) => ({
         id: c.id,
         number: c.number,
         name: c.name,
@@ -108,7 +119,9 @@ export async function POST(req: NextRequest) {
       }));
     } else {
       return jsonError(
-        "Carregue contatos antes de criar um agendamento congelado.",
+        contactIds.length
+          ? "Nenhum contato selecionado encontrado no catálogo."
+          : "Carregue contatos antes de criar um agendamento congelado.",
         400
       );
     }

@@ -5,6 +5,8 @@ import {
   updateSchedule,
   removeSchedules,
 } from "@/server/store/schedules";
+import { listContacts } from "@/server/store/contacts";
+import type { Schedule } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +68,47 @@ export async function PUT(
     );
   }
 
+  const contactMode: "current" | "snapshot" =
+    body.contact_mode === "current" ? "current" : "snapshot";
+
+  const contactIds: string[] = Array.isArray(body.contact_ids)
+    ? body.contact_ids
+    : body.selected_contact_ids && Array.isArray(body.selected_contact_ids)
+      ? body.selected_contact_ids
+      : current.selected_contact_ids || [];
+
+  let contacts: Schedule["contacts"] | undefined;
+  if (contactMode === "snapshot" && body.contacts === undefined) {
+    const catalog = listContacts(session.user.tenantId);
+    let source = catalog.contacts;
+    if (contactIds.length > 0) {
+      const idSet = new Set(contactIds);
+      source = source.filter((c) => idSet.has(c.id));
+    }
+    if (!source.length) {
+      return NextResponse.json(
+        {
+          error: contactIds.length
+            ? "Nenhum contato selecionado encontrado no catálogo."
+            : "Catálogo vazio — importe contatos antes de congelar.",
+        },
+        { status: 400 }
+      );
+    }
+    contacts = source.map((c) => ({
+      id: c.id,
+      number: c.number,
+      name: c.name,
+      tags: [...c.tags],
+      lists: [...c.lists],
+      opt_out: c.opt_out,
+      notes: c.notes,
+      fields: { ...c.fields },
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    }));
+  }
+
   const updated = updateSchedule(session.user.tenantId, id, {
     scheduled_at: date.toISOString(),
     message,
@@ -82,10 +125,9 @@ export async function PUT(
       body.skip_sent_history === undefined
         ? current.skip_sent_history
         : !!body.skip_sent_history,
-    contact_mode:
-      body.contact_mode === "current" || body.contact_mode === "snapshot"
-        ? body.contact_mode
-        : current.contact_mode,
+    contact_mode: contactMode,
+    ...(contacts !== undefined ? { contacts } : {}),
+    selected_contact_ids: contactIds,
   });
   return NextResponse.json(updated);
 }

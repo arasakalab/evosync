@@ -26,6 +26,7 @@ export default function MensagemPage() {
   const settings = useAppStore((s) => s.settings);
   const setSettings = useAppStore((s) => s.setSettings);
   const contacts = useAppStore((s) => s.contacts);
+  const selectedIds = useAppStore((s) => s.selectedIds);
 
   const [template, setTemplate] = useState(settings.last_message || "");
   const [mediaPath, setMediaPath] = useState(settings.last_media_path || "");
@@ -63,18 +64,26 @@ export default function MensagemPage() {
   };
 
   const onPreview = async () => {
-    if (!contacts.length) {
+    let c = contacts.find((contact) => selectedIds.has(contact.id)) ?? null;
+    if (!c && selectedIds.size > 0) {
+      try {
+        const r = await api.contacts.list({ mode: "selected", limit: 1 });
+        c = r.contacts[0] ?? null;
+      } catch {
+        /* silencioso */
+      }
+    }
+    if (!c) {
       setPreviewContact("");
       setPreviewText(
         template.trim()
           ? template
           : previewMediaUrl
             ? ""
-            : "(sem contatos — adicione ou importe um CSV)"
+            : "(sem contatos marcados — marque em Contatos ou importe um CSV)"
       );
       return;
     }
-    const c = contacts[0];
     const r = await api.message.preview(template, c);
     setPreviewContact(c.number);
     setPreviewText(r.rendered);

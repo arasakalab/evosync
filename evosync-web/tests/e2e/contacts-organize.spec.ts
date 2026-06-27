@@ -56,10 +56,12 @@ test.describe("Organizar contatos (importar + lista + tag + opt-out)", () => {
       .last()
       .click();
 
-    // Lista deve aparecer nos chips
+    // Lista deve aparecer nos chips (dialog pode fechar com animação)
     await expect(
       page.locator("button:has-text('VIP')").first()
     ).toBeVisible({ timeout: 5_000 });
+    await page.keyboard.press("Escape");
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible({ timeout: 5_000 });
 
     // 4. Adicionar tag aos selecionados (Alice + Bob)
     await page.locator("button:has-text('Tag')").first().click();
@@ -69,7 +71,7 @@ test.describe("Organizar contatos (importar + lista + tag + opt-out)", () => {
     await tagDialog.locator('button:has-text("Aplicar")').click();
 
     // 5. Limpar seleção e selecionar só Carol
-    await page.locator("button:has-text('Limpar seleção')").click();
+    await page.locator("button:has-text('Limpar seleção')").first().click();
     await page.waitForTimeout(300);
 
     // Localiza a linha do Carol (única sem tag) e seleciona

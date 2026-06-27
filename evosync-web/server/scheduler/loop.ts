@@ -140,13 +140,15 @@ async function startScheduledSend(s: Schedule) {
   let contacts: typeof allContacts;
   if (s.contact_mode === "current") {
     const selectedIds = s.selected_contact_ids || [];
-    if (selectedIds.length > 0) {
-      const idSet = new Set(selectedIds);
-      contacts = allContacts.filter((c) => idSet.has(c.id));
-    } else {
-      // Migração/legado: schedule sem selected_contact_ids → usa catálogo
-      contacts = allContacts;
+    if (selectedIds.length === 0) {
+      failSchedule(
+        s,
+        "Agendamento sem contatos selecionados. Edite o agendamento ou marque contatos em Contatos."
+      );
+      return;
     }
+    const idSet = new Set(selectedIds);
+    contacts = allContacts.filter((c) => idSet.has(c.id));
   } else {
     contacts = (s.contacts || []).filter((c) => c && c.number) as typeof allContacts;
   }

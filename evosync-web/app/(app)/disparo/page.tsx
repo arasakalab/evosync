@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Send,
   Play,
@@ -22,6 +23,7 @@ import {
   FileWarning,
   Ban,
   Paperclip,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -49,9 +51,9 @@ export default function DisparoPage() {
   const settings = useAppStore((s) => s.settings);
   const setSettings = useAppStore((s) => s.setSettings);
   const status = useAppStore((s) => s.status);
-  const contacts = useAppStore((s) => s.contacts);
+  const contactsCount = useAppStore((s) => s.contactsCount);
   const selectedIds = useAppStore((s) => s.selectedIds);
-  const mode = useAppStore((s) => s.contactsMode);
+  const selectionLoaded = useAppStore((s) => s.selectionLoaded);
   const logs = useAppStore((s) => s.logs);
   const clearLogs = useAppStore((s) => s.clearLogs);
 
@@ -62,6 +64,7 @@ export default function DisparoPage() {
   const [resendSent, setResendSent] = useState(settings.resend_sent);
   const [confirmStop, setConfirmStop] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmSendAll, setConfirmSendAll] = useState(false);
   const [acting, setActing] = useState(false);
 
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -89,23 +92,26 @@ export default function DisparoPage() {
     setSettings(saved);
   };
 
-  const onStart = async () => {
+  const doStart = async (sendAll: boolean) => {
     if (status.state === "running" || status.state === "paused") {
       toast.error("Já existe um disparo em andamento");
       return;
     }
-    // FASE 5: se o modo é "selected", envia apenas os IDs marcados.
-    // Caso contrário, envia o catálogo inteiro.
-    const useSelection = mode === "selected" && selectedIds.size > 0;
-    if (useSelection) {
-      // OK — usa selectedIds
-    } else if (!contacts.length) {
-      toast.error("Importe ou adicione contatos antes de iniciar");
+    if (!selectionLoaded) {
+      toast.error("Carregando seleção de contatos… tente novamente.");
       return;
-    } else if (mode === "selected" && selectedIds.size === 0) {
-      toast.error(
-        "Nenhum contato selecionado. Vá em Contatos e marque quem vai para o disparo."
-      );
+    }
+    const hasSelection = selectedIds.size > 0;
+    if (!hasSelection && !sendAll) {
+      if (contactsCount === 0) {
+        toast.error("Importe ou adicione contatos antes de iniciar");
+        return;
+      }
+      setConfirmSendAll(true);
+      return;
+    }
+    if (!hasSelection && contactsCount === 0) {
+      toast.error("Importe ou adicione contatos antes de iniciar");
       return;
     }
     setActing(true);
@@ -121,20 +127,23 @@ export default function DisparoPage() {
         dailyLimit,
         validateFirst,
         skipSentHistory: !resendSent,
-        contactIds: useSelection ? Array.from(selectedIds) : undefined,
+        contactIds: hasSelection ? Array.from(selectedIds) : undefined,
       });
       clearLogs();
       toast.success(
-        useSelection
-          ? `Disparo iniciado (${selectedIds.size} selecionado${selectedIds.size !== 1 ? "s" : ""})`
-          : "Disparo iniciado"
+        hasSelection
+          ? `Disparo iniciado (${selectedIds.size} marcado${selectedIds.size !== 1 ? "s" : ""})`
+          : `Disparo iniciado para todos os ${contactsCount} contatos do catálogo`
       );
     } catch (e: any) {
       toast.error(e?.message || "Falha ao iniciar");
     } finally {
       setActing(false);
+      setConfirmSendAll(false);
     }
   };
+
+  const onStart = () => doStart(false);
 
   const onPause = async () => {
     setActing(true);
@@ -193,6 +202,33 @@ export default function DisparoPage() {
           Configure velocidade, validação e execução. Acompanhe o andamento em tempo real.
         </p>
       </header>
+
+      <Card className={selectedIds.size === 0 ? "border-warn/40 bg-warn/5" : "border-primary/30 bg-primary/5"}>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <Users className="h-5 w-5 shrink-0 text-primary mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-text">
+                  {selectedIds.size > 0
+                    ? `Destinatários: ${selectedIds.size} contato${selectedIds.size !== 1 ? "s" : ""} marcado${selectedIds.size !== 1 ? "s" : ""} para envio`
+                    : "Nenhum contato marcado para envio"}
+                </p>
+                <p className="text-xs text-muted mt-0.5">
+                  {selectedIds.size > 0
+                    ? "Somente os marcados em Contatos receberão esta campanha."
+                    : contactsCount > 0
+                      ? `Catálogo com ${contactsCount} contato${contactsCount !== 1 ? "s" : ""}. Marque em Contatos ou confirme envio para todos ao iniciar.`
+                      : "Importe contatos antes de disparar."}
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/contatos">Gerenciar contatos →</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -441,6 +477,25 @@ export default function DisparoPage() {
               className="bg-danger text-white hover:bg-danger-hover"
             >
               Resetar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmSendAll} onOpenChange={setConfirmSendAll}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enviar para todo o catálogo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Nenhum contato está marcado para envio. Deseja enviar para todos os{" "}
+              {contactsCount} contato{contactsCount !== 1 ? "s" : ""} do catálogo?
+              Contatos com opt-out serão pulados automaticamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => doStart(true)}>
+              Enviar para todos
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -268,8 +268,10 @@ export interface Contact {
   flag evitam race no mount inicial.
 - **Performance do `JSON_EXTRACT`:** para catálogos 50k+, considerar
   tabela relacional `contact_tags` (fora do escopo).
-- **UX confusa (catálogo vs. seleção):** o contador inteligente no header
-  + modo visual destacado reduzem a curva de aprendizado.
+- **UX confusa (catálogo vs. seleção):** resolvido com painel **Para envio**
+  fixo, badge no header e regra de disparo: só marcados recebem (ou confirmação
+  explícita para enviar ao catálogo inteiro). O modo visual da tabela não
+  controla mais quem recebe mensagem.
 
 ## 8. Como rodar local
 

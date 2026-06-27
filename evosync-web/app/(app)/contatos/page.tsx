@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Users,
   FileUp,
@@ -40,7 +41,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
 import type { Contact, ContactFilters } from "@/lib/types";
@@ -48,20 +48,24 @@ import { cn, onlyDigits } from "@/lib/utils";
 import { clientPublicAppUrl } from "@/lib/app-url";
 
 import { ContactModeToggle } from "@/components/contact-mode-toggle";
+import { ContactsHeaderStats } from "@/components/contacts/contacts-header-stats";
+import { ContactsSendPanel } from "@/components/contacts/contacts-send-panel";
 import { TagChips } from "@/components/tag-chips";
 import { ListChips } from "@/components/list-chips";
 import { BulkActionBar } from "@/components/bulk-action-bar";
 import { OptOutBadge } from "@/components/opt-out-badge";
 import { CreateListDialog } from "@/components/create-list-dialog";
 import { AddTagDialog } from "@/components/add-tag-dialog";
+import { refetchContactsWithActiveFilters } from "@/lib/contacts-refetch";
 
 const SELECTION_SYNC_DEBOUNCE_MS = 300;
+const SEARCH_DEBOUNCE_MS = 300;
 
 export default function ContatosPage() {
+  const searchParams = useSearchParams();
   const contacts = useAppStore((s) => s.contacts);
   const setContacts = useAppStore((s) => s.setContacts);
   const contactsCount = useAppStore((s) => s.contactsCount);
-  const filteredCount = useAppStore((s) => s.filteredContactsCount);
   const mode = useAppStore((s) => s.contactsMode);
   const setMode = useAppStore((s) => s.setContactsMode);
   const tagFilter = useAppStore((s) => s.contactsTagFilter);
@@ -89,7 +93,19 @@ export default function ContatosPage() {
   const [createListOpen, setCreateListOpen] = useState(false);
   const [addTagOpen, setAddTagOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    if (searchParams.get("panel") === "send" && mode !== "selected") {
+      setMode("selected");
+    }
+  }, [searchParams, mode, setMode]);
 
   const copySignupLink = async () => {
     if (!tenantSlug) return;
@@ -138,7 +154,7 @@ export default function ContatosPage() {
   useEffect(() => {
     if (!selectionLoaded) return;
     const filters: ContactFilters = {
-      q: search || undefined,
+      q: debouncedSearch || undefined,
       mode: mode === "all" ? undefined : mode,
       tag: tagFilter || undefined,
       list: listFilter || undefined,
@@ -151,7 +167,7 @@ export default function ContatosPage() {
         /* silencioso */
       }
     })();
-  }, [mode, tagFilter, listFilter, search, selectionLoaded, setContacts]);
+  }, [mode, tagFilter, listFilter, debouncedSearch, selectionLoaded, setContacts]);
 
   // Sincroniza seleção com backend (debounced)
   useEffect(() => {
@@ -198,11 +214,7 @@ export default function ContatosPage() {
         }
         try {
           const r = await api.contacts.importCsv(rows);
-          const fresh = await api.contacts.list();
-          setContacts(fresh.contacts, {
-            count: fresh.count,
-            filteredCount: fresh.filteredCount,
-          });
+          await refetchContactsWithActiveFilters();
           toast.success(
             `${r.added} adicionados · ${r.updated} atualizados · ${r.skipped} inalterados (total ${r.total})`
           );
@@ -218,11 +230,7 @@ export default function ContatosPage() {
     setImportingWa(true);
     try {
       const r = await api.contacts.importWhatsapp();
-      const fresh = await api.contacts.list();
-      setContacts(fresh.contacts, {
-        count: fresh.count,
-        filteredCount: fresh.filteredCount,
-      });
+      await refetchContactsWithActiveFilters();
       toast.success(
         `WhatsApp: ${r.added} novos · ${r.updated} atualizados · ${r.existed} já existiam`
       );
@@ -240,11 +248,7 @@ export default function ContatosPage() {
       const ids = Array.from(selectedIds);
       await Promise.all(ids.map((id) => api.contacts.remove(id).catch(() => null)));
       clearSelection();
-      const fresh = await api.contacts.list();
-      setContacts(fresh.contacts, {
-        count: fresh.count,
-        filteredCount: fresh.filteredCount,
-      });
+      await refetchContactsWithActiveFilters();
       toast.success(`${ids.length} contato(s) removido(s)`);
     } catch (e: any) {
       toast.error(e?.message || "Falha ao remover");
@@ -267,7 +271,7 @@ export default function ContatosPage() {
   };
 
   const onSelectAllVisible = () => {
-    const ids = contacts.map((c) => c.id);
+    const ids = contacts.filter((c) => !c.opt_out).map((c) => c.id);
     const allSelected = ids.every((id) => selectedIds.has(id));
     if (allSelected) {
       // Remove visíveis
@@ -295,11 +299,7 @@ export default function ContatosPage() {
         api.contacts.update(id, { opt_out: optOut }).catch(() => null)
       )
     );
-    const fresh = await api.contacts.list();
-    setContacts(fresh.contacts, {
-      count: fresh.count,
-      filteredCount: fresh.filteredCount,
-    });
+    await refetchContactsWithActiveFilters();
     toast.success(
       optOut
         ? `${ids.length} marcado(s) como opt-out`
@@ -334,11 +334,7 @@ export default function ContatosPage() {
   }, [contactLists, pendingListId]);
 
   const refreshAfterTag = async () => {
-    const fresh = await api.contacts.list();
-    setContacts(fresh.contacts, {
-      count: fresh.count,
-      filteredCount: fresh.filteredCount,
-    });
+    await refetchContactsWithActiveFilters();
   };
 
   return (
@@ -351,34 +347,18 @@ export default function ContatosPage() {
             Contatos
           </h1>
           <p className="section-subtitle">
-            Catálogo persistente. Selecione quem vai para o próximo disparo.
+            Catálogo persistente. Marque quem receberá a próxima campanha — desmarcados nunca recebem.
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="secondary" className="text-sm px-3 py-1">
-            {filteredCount === contactsCount
-              ? `${contactsCount} contatos`
-              : `${filteredCount}/${contactsCount} contatos`}
-          </Badge>
-          {selectedCount > 0 && (
-            <Badge variant="success" className="text-sm px-3 py-1">
-              {selectedCount} selecionado{selectedCount !== 1 ? "s" : ""}
-            </Badge>
-          )}
-          {contacts.filter((c) => c.opt_out).length > 0 && (
-            <Badge variant="danger" className="text-sm px-3 py-1">
-              {contacts.filter((c) => c.opt_out).length} opt-out
-            </Badge>
-          )}
-          {contactLists.length > 0 && (
-            <Badge variant="muted" className="text-sm px-3 py-1">
-              {contactLists.length} lista{contactLists.length !== 1 ? "s" : ""}
-            </Badge>
-          )}
-        </div>
+        <ContactsHeaderStats />
       </header>
 
-      {/* Modo de visualização */}
+      <ContactsSendPanel
+        onViewSelected={() => setMode("selected")}
+        onClearSelection={clearSelection}
+      />
+
+      {/* Catálogo */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <ContactModeToggle />
         <div className="flex items-center gap-2 flex-wrap">
@@ -493,7 +473,7 @@ export default function ContatosPage() {
               {contactsCount === 0
                 ? "Nenhum contato carregado. Importe um CSV, busque no WhatsApp ou adicione manualmente."
                 : mode === "selected" && selectedCount === 0
-                ? "Nenhum contato selecionado para envio. Volte ao modo 'Todos' e marque os desejados."
+                ? "Nenhum contato marcado para envio. Volte ao catálogo e marque os desejados."
                 : search || tagFilter || listFilter
                 ? "Filtros aplicados. Use a barra de ação em massa ou marque linhas para selecionar."
                 : "Selecione linhas para adicionar à campanha."}
@@ -546,15 +526,21 @@ export default function ContatosPage() {
                           isSel && "bg-primary/10",
                           c.opt_out && "opacity-60"
                         )}
-                        onClick={() => toggleSelected(c.id)}
+                        onClick={() => !c.opt_out && toggleSelected(c.id)}
                       >
                         <td className="px-3 py-2.5">
                           <input
                             type="checkbox"
                             checked={isSel}
-                            onChange={() => toggleSelected(c.id)}
+                            disabled={c.opt_out}
+                            title={
+                              c.opt_out
+                                ? "Opt-out — não pode ser marcado para envio"
+                                : undefined
+                            }
+                            onChange={() => !c.opt_out && toggleSelected(c.id)}
                             onClick={(e) => e.stopPropagation()}
-                            className="h-4 w-4 rounded border-border bg-[#0d1713] accent-primary"
+                            className="h-4 w-4 rounded border-border bg-[#0d1713] accent-primary disabled:opacity-40"
                           />
                         </td>
                         <td className="px-3 py-2.5 font-mono text-text">
@@ -633,11 +619,7 @@ export default function ContatosPage() {
         open={showAdd}
         onOpenChange={setShowAdd}
         onAdded={async () => {
-          const fresh = await api.contacts.list();
-          setContacts(fresh.contacts, {
-            count: fresh.count,
-            filteredCount: fresh.filteredCount,
-          });
+          await refetchContactsWithActiveFilters();
         }}
       />
 

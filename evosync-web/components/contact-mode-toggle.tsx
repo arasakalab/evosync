@@ -2,11 +2,10 @@
 
 import { useAppStore, type ContactsViewMode } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { Users, CheckCheck, Ban } from "lucide-react";
+import { Users, Ban } from "lucide-react";
 
-const MODES: Array<{ key: ContactsViewMode; label: string; icon: any }> = [
+const MODES: Array<{ key: ContactsViewMode; label: string; icon: typeof Users }> = [
   { key: "all", label: "Todos", icon: Users },
-  { key: "selected", label: "Selecionados", icon: CheckCheck },
   { key: "opt_out", label: "Opt-out", icon: Ban },
 ];
 
