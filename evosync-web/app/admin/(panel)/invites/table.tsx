@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/admin/empty-state";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { clientPublicAppUrl } from "@/lib/app-url";
 
 interface Invite {
   id: string;
@@ -68,7 +69,7 @@ export default function InvitesTable({ invites }: { invites: Invite[] }) {
   };
 
   function copyLink(token: string) {
-    const url = `${window.location.origin}/invite/${token}`;
+    const url = clientPublicAppUrl(`/invite/${token}`);
     navigator.clipboard.writeText(url);
     setCopied(token);
     toast.success("Link copiado!", {

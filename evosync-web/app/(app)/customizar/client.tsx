@@ -45,6 +45,7 @@ import { GoogleFontsLink } from "@/components/brand/google-fonts";
 
 import type { BrandingConfig } from "@/lib/branding";
 import { FONT_FAMILIES, getLandingDisplayName } from "@/lib/branding";
+import { clientPublicAppUrl } from "@/lib/app-url";
 
 const HEX_REGEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -626,7 +627,7 @@ function LandingLink({ path }: { path: string }) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
-    const full = `${window.location.origin}${path}`;
+    const full = clientPublicAppUrl(path);
     try {
       await navigator.clipboard.writeText(full);
       setCopied(true);

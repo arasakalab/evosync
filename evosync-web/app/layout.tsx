@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Providers } from "@/components/providers";
+import { resolvePublicAppUrl } from "@/lib/app-url";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -39,13 +41,19 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const publicAppUrl = resolvePublicAppUrl(await headers());
+
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html
+      lang="pt-BR"
+      data-public-app-url={publicAppUrl}
+      suppressHydrationWarning
+    >
       <body
         className={`${inter.variable} ${mono.variable} ${display.variable} font-sans`}
       >

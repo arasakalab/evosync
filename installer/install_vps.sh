@@ -118,6 +118,7 @@ AUTH_SECRET=$AUTH_SECRET
 EOF
   if [ -n "$DOMAIN" ]; then
     echo "AUTH_URL=https://www.$DOMAIN" >> "$APP_DIR/.env"
+    echo "APP_URL=https://www.$DOMAIN" >> "$APP_DIR/.env"
   fi
   cat >> "$APP_DIR/.env" <<EOF
 # Preencha conforme o tenant:
@@ -232,6 +233,7 @@ server {
     proxy_set_header Upgrade \$http_upgrade;
     proxy_set_header Connection "upgrade";
     proxy_set_header Host \$host;
+    proxy_set_header X-Forwarded-Host \$host;
     proxy_set_header X-Real-IP \$remote_addr;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto \$scheme;
@@ -243,6 +245,7 @@ server {
     proxy_pass http://evosync_upstream;
     proxy_http_version 1.1;
     proxy_set_header Host \$host;
+    proxy_set_header X-Forwarded-Host \$host;
     proxy_set_header X-Real-IP \$remote_addr;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto \$scheme;
@@ -274,16 +277,18 @@ if command -v ufw >/dev/null 2>&1; then
   # ufw --force enable
 fi
 
-# === AUTH_URL (NextAuth redirect pós-login) ===
+# === AUTH_URL / APP_URL (NextAuth + links públicos) ===
 if [ -n "$DOMAIN" ] && [ -f "$APP_DIR/.env" ]; then
-  AUTH_URL="https://www.$DOMAIN"
-  if grep -q '^AUTH_URL=' "$APP_DIR/.env"; then
-    sed -i "s|^AUTH_URL=.*|AUTH_URL=$AUTH_URL|" "$APP_DIR/.env"
-  else
-    echo "AUTH_URL=$AUTH_URL" >> "$APP_DIR/.env"
-  fi
+  PUBLIC_URL="https://www.$DOMAIN"
+  for key in AUTH_URL APP_URL; do
+    if grep -q "^${key}=" "$APP_DIR/.env"; then
+      sed -i "s|^${key}=.*|${key}=${PUBLIC_URL}|" "$APP_DIR/.env"
+    else
+      echo "${key}=${PUBLIC_URL}" >> "$APP_DIR/.env"
+    fi
+  done
   chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
-  log "AUTH_URL=$AUTH_URL"
+  log "AUTH_URL/APP_URL=${PUBLIC_URL}"
 fi
 
 # === Inicia o serviço ===

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { createInvite, listInvites } from "@/server/store/invites";
 import { logAudit } from "@/server/store/audit";
+import { publicAppUrl } from "@/lib/app-url";
 
 export const dynamic = "force-dynamic";
 
@@ -67,10 +68,9 @@ export async function POST(req: NextRequest) {
       action: "invite.created",
       details: { inviteId: inv.id, email: inv.email, role: inv.role, expiresInDays: inv.expiresAt },
     });
-    const base = req.nextUrl.origin;
     return NextResponse.json({
       invite: inv,
-      acceptUrl: `${base}/invite/${inv.token}`,
+      acceptUrl: publicAppUrl(`/invite/${inv.token}`, req),
     });
   } catch (e: any) {
     return NextResponse.json(

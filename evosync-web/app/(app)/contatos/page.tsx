@@ -45,6 +45,7 @@ import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
 import type { Contact, ContactFilters } from "@/lib/types";
 import { cn, onlyDigits } from "@/lib/utils";
+import { clientPublicAppUrl } from "@/lib/app-url";
 
 import { ContactModeToggle } from "@/components/contact-mode-toggle";
 import { TagChips } from "@/components/tag-chips";
@@ -92,7 +93,7 @@ export default function ContatosPage() {
 
   const copySignupLink = async () => {
     if (!tenantSlug) return;
-    const link = `${window.location.origin}/c/${tenantSlug}`;
+    const link = clientPublicAppUrl(`/c/${tenantSlug}`);
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);
