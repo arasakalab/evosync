@@ -121,6 +121,7 @@ export default function ManagedConnectionCard() {
   // pra que o AppShell reavalie o guard e libere o menu lateral
   // automaticamente (sem precisar F5).
   const setSettings = useAppStore((s) => s.setSettings);
+  const setConnection = useAppStore((s) => s.setConnection);
   const currentManagedStatus = useAppStore(
     (s) => s.settings.managed_status
   );
@@ -129,6 +130,12 @@ export default function ManagedConnectionCard() {
     try {
       const s = await api.connection.status();
       setStatus(s);
+      setConnection({
+        ok: s.ok,
+        state: s.state,
+        msg: s.error || (s.ok ? "Conectado" : "Desconectado"),
+        checkedAt: new Date().toISOString(),
+      });
 
       // Propaga o managed_status pro store global SE mudou.
       // Isso desbloqueia o menu lateral automaticamente quando o
@@ -153,7 +160,7 @@ export default function ManagedConnectionCard() {
     } finally {
       setLoading(false);
     }
-  }, [currentManagedStatus, setSettings]);
+  }, [currentManagedStatus, setSettings, setConnection]);
 
   const fetchQr = useCallback(async () => {
     // Só busca QR se estiver em "ready" (instância existe, aguardando pareamento)

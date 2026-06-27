@@ -80,7 +80,7 @@ export async function waitForContactsCount(
           const m = txt.match(/(\d+)/);
           return m ? Number(m[1]) : -1;
         }
-        const headerBadge = page.locator('span:text-is("Catálogo:") + span').first();
+        const headerBadge = page.locator('span:text-is("Contatos:") + span').first();
         if (await headerBadge.isVisible().catch(() => false)) {
           const txt = (await headerBadge.textContent()) ?? "";
           const m = txt.match(/(\d+)/);

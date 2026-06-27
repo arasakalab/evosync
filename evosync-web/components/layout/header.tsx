@@ -9,7 +9,7 @@ import { LogoutButton } from "@/components/admin/logout-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CircleDot, History, Users, UserCircle2 } from "lucide-react";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn, formatConnectionState } from "@/lib/utils";
 
 export function Header() {
   const { data: session } = useSession();
@@ -48,7 +48,7 @@ export function Header() {
       <div className="flex items-center gap-1.5 md:gap-2 ml-auto flex-wrap justify-end">
         <div className="hidden md:flex items-center gap-2 rounded-lg border border-border bg-surface/60 px-3 py-1.5 text-xs">
           <Users className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-muted-foreground">Catálogo:</span>
+          <span className="text-muted-foreground">Contatos:</span>
           <span className="font-semibold text-foreground tabular-nums">{contactsCount}</span>
         </div>
         <Link
@@ -77,7 +77,7 @@ export function Header() {
               connection.ok ? "text-success" : "text-muted-foreground"
             )}
           >
-            {connection.ok ? connection.state || "OK" : "—"}
+            {formatConnectionState(connection.ok, connection.state)}
           </span>
         </div>
         <SendStateBadge state={status.state} />

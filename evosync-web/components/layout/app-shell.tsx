@@ -75,6 +75,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setSelectionLoaded,
   ]);
 
+  // Polling de conexão WhatsApp (header + guard). WS "conn" é raro fora do BYO test.
+  useEffect(() => {
+    let mounted = true;
+    const refreshConnection = async () => {
+      try {
+        const s = await api.connection.status();
+        if (!mounted) return;
+        setConnection({
+          ok: s.ok,
+          state: s.state,
+          msg: s.error || (s.ok ? "Conectado" : "Desconectado"),
+          checkedAt: new Date().toISOString(),
+        });
+        if (s.mode === "managed" && s.managedStatus) {
+          const current = useAppStore.getState().settings;
+          if (current.managed_status !== s.managedStatus) {
+            setSettings({ ...current, managed_status: s.managedStatus });
+          }
+        }
+      } catch {
+        /* silencioso */
+      }
+    };
+    refreshConnection();
+    const t = setInterval(refreshConnection, 5000);
+    return () => {
+      mounted = false;
+      clearInterval(t);
+    };
+  }, [setConnection, setSettings]);
+
   // WS: alimenta store
   useWebSocket((event) => {
     if (event.type === "status") {

@@ -59,3 +59,15 @@ export function mediaPreviewUrl(mediaPath: string): string | null {
   if (!name) return null;
   return `/api/upload/media/file?f=${encodeURIComponent(name)}`;
 }
+
+/** Rótulo amigável do estado WhatsApp no header. */
+export function formatConnectionState(
+  ok: boolean,
+  state?: string | null
+): string {
+  if (!ok) return "—";
+  if (state === "open") return "Conectado";
+  if (state === "connecting") return "Conectando…";
+  if (state === "close") return "Desconectado";
+  return state || "OK";
+}
