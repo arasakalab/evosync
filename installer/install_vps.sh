@@ -115,6 +115,11 @@ NODE_ENV=production
 LOG_LEVEL=info
 ENCRYPTION_KEY=$ENC_KEY
 AUTH_SECRET=$AUTH_SECRET
+EOF
+  if [ -n "$DOMAIN" ]; then
+    echo "AUTH_URL=https://www.$DOMAIN" >> "$APP_DIR/.env"
+  fi
+  cat >> "$APP_DIR/.env" <<EOF
 # Preencha conforme o tenant:
 # EVO_URL=https://sua-evolution-api.exemplo.com
 # EVO_APIKEY=...
@@ -267,6 +272,18 @@ if command -v ufw >/dev/null 2>&1; then
   fi
   # ufw enable é interativo; descomente a próxima linha se quiser forçar:
   # ufw --force enable
+fi
+
+# === AUTH_URL (NextAuth redirect pós-login) ===
+if [ -n "$DOMAIN" ] && [ -f "$APP_DIR/.env" ]; then
+  AUTH_URL="https://www.$DOMAIN"
+  if grep -q '^AUTH_URL=' "$APP_DIR/.env"; then
+    sed -i "s|^AUTH_URL=.*|AUTH_URL=$AUTH_URL|" "$APP_DIR/.env"
+  else
+    echo "AUTH_URL=$AUTH_URL" >> "$APP_DIR/.env"
+  fi
+  chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
+  log "AUTH_URL=$AUTH_URL"
 fi
 
 # === Inicia o serviço ===

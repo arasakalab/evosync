@@ -44,7 +44,7 @@ function LoginForm() {
         setError("Email ou senha incorretos.");
         return;
       }
-      router.push(res.url || callbackUrl);
+      router.push(callbackUrl);
       router.refresh();
     });
   };
