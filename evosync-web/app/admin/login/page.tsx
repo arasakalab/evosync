@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useTransition } from "react";
+import { Suspense, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -138,10 +138,23 @@ function LoginFormFallback() {
 }
 
 export default function LoginPage() {
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtml = html.style.overflow;
+    const prevBody = body.style.overflow;
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = prevHtml;
+      body.style.overflow = prevBody;
+    };
+  }, []);
+
   return (
-    <div className="min-h-[100dvh] w-full flex flex-col lg:flex-row bg-background overflow-hidden">
+    <div className="h-[100dvh] w-full flex flex-col lg:flex-row bg-background overflow-hidden">
       {/* === LADO ESQUERDO: brand (desktop) === */}
-      <div className="hidden lg:flex lg:w-1/2 lg:max-w-[720px] lg:shrink-0 relative overflow-hidden bg-surface-sunken">
+      <div className="hidden lg:flex lg:w-1/2 lg:max-w-[720px] lg:shrink-0 relative h-full overflow-hidden bg-surface-sunken">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 left-0 h-full w-full bg-gradient-radial" />
           <div className="absolute -top-40 -left-40 h-96 w-96 rounded-full bg-primary/20 blur-3xl animate-pulse-soft" />
@@ -149,8 +162,8 @@ export default function LoginPage() {
           <div className="absolute inset-0 bg-grid opacity-30" />
         </div>
 
-        <div className="relative flex flex-col min-h-[100dvh] w-full overflow-y-auto">
-          <header className="shrink-0 flex items-center justify-between gap-4 px-10 xl:px-14 pt-10 xl:pt-12 pb-4">
+        <div className="relative flex flex-col h-full w-full overflow-hidden">
+          <header className="shrink-0 flex items-center justify-between gap-4 px-10 xl:px-14 pt-8 xl:pt-10 pb-2">
             <Link href="/" className="flex items-center gap-3 group min-w-0">
               <div className="relative shrink-0">
                 <div className="absolute inset-0 rounded-xl bg-primary/40 blur-md" />
@@ -170,15 +183,15 @@ export default function LoginPage() {
             <ThemeToggle />
           </header>
 
-          <main className="flex-1 flex flex-col justify-center px-10 xl:px-14 py-10 xl:py-14">
-            <div className="w-full max-w-lg space-y-8">
+          <main className="flex-1 flex flex-col justify-center min-h-0 px-10 xl:px-14 py-4 xl:py-6">
+            <div className="w-full max-w-lg space-y-5 xl:space-y-6">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary-subtle px-3.5 py-1.5 text-xs font-medium text-primary">
                 <Sparkles className="h-3.5 w-3.5 shrink-0" />
                 Disparador profissional para WhatsApp
               </div>
 
-              <div className="space-y-5">
-                <h1 className="text-3xl xl:text-[2.75rem] font-bold font-display tracking-tight text-foreground leading-[1.15]">
+              <div className="space-y-4">
+                <h1 className="text-3xl xl:text-4xl font-bold font-display tracking-tight text-foreground leading-[1.15]">
                   Suas campanhas no WhatsApp dos clientes.
                   <span className="mt-2 block text-gradient-primary">
                     Direto, pessoal, em escala.
@@ -199,7 +212,7 @@ export default function LoginPage() {
                 </p>
               </div>
 
-              <ul className="space-y-4 border-t border-border/60 pt-8">
+              <ul className="space-y-3 border-t border-border/60 pt-5 xl:pt-6">
                 {[
                   { icon: Zap, text: "Conecte seu WhatsApp em 1 minuto, escaneando QR" },
                   { icon: Shield, text: "Delays aleatórios + aquecimento gradual anti-ban" },
@@ -222,7 +235,7 @@ export default function LoginPage() {
             </div>
           </main>
 
-          <footer className="shrink-0 px-10 xl:px-14 pb-10 xl:pb-12 pt-4 text-xs text-muted-foreground">
+          <footer className="shrink-0 px-10 xl:px-14 pb-6 xl:pb-8 pt-2 text-xs text-muted-foreground">
             v1.1.0 · Next.js 14 ·{" "}
             <span className="text-foreground/60">
               {new Date().getFullYear()} Arasaka Lab
@@ -232,35 +245,32 @@ export default function LoginPage() {
       </div>
 
       {/* === LADO DIREITO: formulário === */}
-      <div className="flex-1 flex flex-col min-h-[100dvh] min-w-0 overflow-y-auto">
-        <div className="flex justify-end p-4 sm:p-5 lg:hidden shrink-0">
+      <div className="flex-1 flex flex-col h-full min-h-0 min-w-0 overflow-y-auto no-scrollbar lg:overflow-hidden">
+        <div className="flex justify-end p-3 sm:p-4 lg:hidden shrink-0">
           <ThemeToggle />
         </div>
 
-        <div className="flex-1 flex items-center justify-center px-5 sm:px-8 lg:px-12 py-8 sm:py-12 lg:py-16">
+        <div className="flex-1 flex items-center justify-center min-h-0 px-5 sm:px-8 lg:px-12 py-4 sm:py-6 lg:py-8">
           <div className="w-full max-w-[420px]">
             {/* Brand mobile / tablet */}
-            <div className="lg:hidden mb-10 sm:mb-12">
-              <div className="flex flex-col items-center text-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-primary shadow-elev-2 shadow-primary/40">
-                  <BrandMark className="h-7 w-7 text-white" />
+            <div className="lg:hidden mb-6 sm:mb-8">
+              <div className="flex flex-col items-center text-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-primary shadow-elev-2 shadow-primary/40">
+                  <BrandMark className="h-6 w-6 text-white" />
                 </div>
-                <div className="space-y-2">
-                  <h1 className="text-3xl font-bold font-display text-foreground tracking-tight">
+                <div className="space-y-1">
+                  <h1 className="text-2xl font-bold font-display text-foreground tracking-tight">
                     EvoSync
                   </h1>
                   <p className="text-sm text-muted-foreground">
                     Painel administrativo
                   </p>
                 </div>
-                <p className="text-sm text-muted-foreground leading-relaxed max-w-xs pt-1">
-                  Disparos no WhatsApp com delays inteligentes e personalização por contato.
-                </p>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border bg-surface/80 p-6 sm:p-8 shadow-elev-1 backdrop-blur-sm">
-              <div className="mb-8 space-y-2">
+            <div className="rounded-2xl border border-border bg-surface/80 p-5 sm:p-7 shadow-elev-1 backdrop-blur-sm">
+              <div className="mb-6 space-y-1.5">
                 <h2 className="text-2xl font-bold font-display tracking-tight text-foreground">
                   <span className="lg:hidden">Entrar</span>
                   <span className="hidden lg:inline">Bem-vindo de volta</span>
@@ -275,7 +285,7 @@ export default function LoginPage() {
               </Suspense>
             </div>
 
-            <p className="text-center text-xs text-muted-foreground mt-6 leading-relaxed px-2">
+            <p className="text-center text-xs text-muted-foreground mt-4 leading-relaxed px-2">
               Acesso restrito a super admins e usuários autorizados.
             </p>
           </div>
