@@ -20,6 +20,7 @@ import {
 import { OPENCODE_IA_ENABLED } from "@/lib/feature-flags";
 import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
+import { mediaFileName, mediaPreviewUrl } from "@/lib/utils";
 
 export default function MensagemPage() {
   const settings = useAppStore((s) => s.settings);
@@ -32,6 +33,10 @@ export default function MensagemPage() {
     (settings.last_media_type as MediaType) || "image"
   );
   const [previewText, setPreviewText] = useState("");
+  const [previewContact, setPreviewContact] = useState("");
+
+  const previewMediaUrl = mediaPreviewUrl(mediaPath);
+  const previewMediaName = mediaFileName(mediaPath);
 
   useEffect(() => {
     setTemplate(settings.last_message || "");
@@ -59,12 +64,20 @@ export default function MensagemPage() {
 
   const onPreview = async () => {
     if (!contacts.length) {
-      setPreviewText("(sem contatos — adicione ou importe um CSV)");
+      setPreviewContact("");
+      setPreviewText(
+        template.trim()
+          ? template
+          : previewMediaUrl
+            ? ""
+            : "(sem contatos — adicione ou importe um CSV)"
+      );
       return;
     }
     const c = contacts[0];
     const r = await api.message.preview(template, c);
-    setPreviewText(`Pré-visualização para ${c.number}:\n\n${r.rendered}`);
+    setPreviewContact(c.number);
+    setPreviewText(r.rendered);
   };
 
   const onMediaPathChange = (path: string) => {
@@ -133,15 +146,57 @@ export default function MensagemPage() {
         </CardContent>
       </Card>
 
-      {previewText && (
+      {(previewText || previewMediaUrl) && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Pré-visualização</CardTitle>
+            {previewContact ? (
+              <CardDescription>
+                Como ficará para <span className="font-mono">{previewContact}</span>
+                {previewMediaUrl ? " — texto + mídia anexada" : ""}
+              </CardDescription>
+            ) : null}
           </CardHeader>
-          <CardContent>
-            <pre className="whitespace-pre-wrap break-words rounded-md border border-border bg-[#0a1310] p-4 text-sm text-text/95 font-mono">
-              {previewText}
-            </pre>
+          <CardContent className="space-y-4">
+            {previewMediaUrl ? (
+              <div className="rounded-lg border border-border bg-surface-alt/40 p-3 space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted">
+                  Mídia ({mediaType})
+                </p>
+                {mediaType === "image" ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewMediaUrl}
+                    alt={previewMediaName || "Mídia anexada"}
+                    className="max-h-72 w-auto max-w-full rounded-md border border-border object-contain"
+                  />
+                ) : mediaType === "video" ? (
+                  <video
+                    src={previewMediaUrl}
+                    controls
+                    className="max-h-72 w-full max-w-full rounded-md border border-border"
+                  />
+                ) : (
+                  <a
+                    href={previewMediaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                  >
+                    {previewMediaName || "Documento anexado"}
+                  </a>
+                )}
+              </div>
+            ) : null}
+            {previewText ? (
+              <pre className="whitespace-pre-wrap break-words rounded-md border border-border bg-[#0a1310] p-4 text-sm text-text/95 font-mono">
+                {previewText}
+              </pre>
+            ) : previewMediaUrl ? (
+              <p className="text-sm text-muted italic">
+                (sem texto — no Disparo será enviada apenas a mídia)
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       )}

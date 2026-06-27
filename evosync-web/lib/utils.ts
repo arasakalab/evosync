@@ -46,3 +46,16 @@ export function clamp(n: number, min: number, max: number): number {
 export function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
+
+/** Nome do arquivo a partir do path absoluto gravado no upload. */
+export function mediaFileName(mediaPath: string): string | null {
+  const name = mediaPath.trim().split(/[\\/]/).pop();
+  return name || null;
+}
+
+/** URL autenticada para pré-visualizar mídia em uploads/. */
+export function mediaPreviewUrl(mediaPath: string): string | null {
+  const name = mediaFileName(mediaPath);
+  if (!name) return null;
+  return `/api/upload/media/file?f=${encodeURIComponent(name)}`;
+}
