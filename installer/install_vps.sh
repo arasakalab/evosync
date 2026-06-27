@@ -127,6 +127,11 @@ else
   log ".env já existe, mantendo"
 fi
 
+# === Diretórios persistentes (ReadWritePaths do systemd) ===
+log "Criando data/, logs/, uploads/..."
+mkdir -p "$APP_DIR/evosync-web/data" "$APP_DIR/evosync-web/logs" "$APP_DIR/evosync-web/uploads"
+chown -R "$APP_USER:$APP_USER" "$APP_DIR/evosync-web/data" "$APP_DIR/evosync-web/logs" "$APP_DIR/evosync-web/uploads"
+
 # === Systemd unit ===
 log "Instalando unit systemd /etc/systemd/system/evosync.service..."
 cat > /etc/systemd/system/evosync.service <<'EOF'
@@ -246,7 +251,7 @@ EOF
     nginx -t
     systemctl reload nginx
     log "Nginx configurado. Validando TLS com certbot..."
-    certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos -m "admin@${DOMAIN#*.}" || \
+    certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" || \
       log "certbot falhou (provavelmente DNS não propagado). Rode: certbot --nginx -d $DOMAIN"
   else
     log "Sem domínio, pulando nginx/certbot"
