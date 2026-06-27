@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
   href: string;
   label: string;
   icon: any;
+  locked?: boolean;
 }
 
 export function Sidebar({
@@ -42,24 +44,45 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
+              aria-disabled={item.locked || undefined}
+              tabIndex={item.locked ? -1 : undefined}
+              onClick={(e) => {
+                if (item.locked) {
+                  e.preventDefault();
+                }
+              }}
               className={cn(
                 "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
                 "transition-all duration-200",
-                active
+                item.locked
+                  ? "text-muted-foreground/40 cursor-not-allowed"
+                  : active
                   ? "bg-primary/10 text-foreground font-medium shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-surface-alt"
               )}
+              title={
+                item.locked
+                  ? "Conecte seu WhatsApp primeiro (aba Conexão)"
+                  : undefined
+              }
             >
-              {active && (
+              {active && !item.locked && (
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-r-full bg-primary" />
               )}
               <Icon
                 className={cn(
                   "h-4 w-4 transition-colors",
-                  active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                  item.locked
+                    ? "text-muted-foreground/40"
+                    : active
+                    ? "text-primary"
+                    : "text-muted-foreground group-hover:text-foreground"
                 )}
               />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.locked && (
+                <Lock className="h-3.5 w-3.5 text-muted-foreground/40" />
+              )}
             </Link>
           );
         })}

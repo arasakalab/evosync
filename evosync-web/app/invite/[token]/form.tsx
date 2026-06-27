@@ -2,18 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
+import { Loader2, XCircle, ArrowRight } from "lucide-react";
 
 type State =
   | { kind: "loading" }
   | { kind: "invalid"; reason: string }
   | { kind: "valid"; email: string; tenantName: string }
   | { kind: "submitting" }
-  | { kind: "done"; tenantName: string }
+  | { kind: "signingIn"; email: string; tenantName: string }
   | { kind: "error"; message: string };
 
 export default function InviteAcceptForm() {
@@ -66,8 +67,39 @@ export default function InviteAcceptForm() {
         setState({ kind: "error", message: data.error || "Erro ao aceitar convite" });
         return;
       }
-      setState({ kind: "done", tenantName: data.tenantName });
-      setTimeout(() => router.push("/admin/login"), 2500);
+
+      // Mostra "Conectando..." enquanto o signIn acontece. Evita a
+      // "tela escura" que aparecia antes (estado "done" muito breve
+      // sem feedback visual, seguido de navegação client-side com
+      // race condition no cookie).
+      setState({
+        kind: "signingIn",
+        email: data.email,
+        tenantName: data.tenantName,
+      });
+
+      const signInRes = await signIn("credentials", {
+        email: data.email,
+        password,
+        redirect: false,
+        callbackUrl: "/conexao",
+      });
+
+      if (signInRes?.error) {
+        setState({
+          kind: "error",
+          message:
+            "Conta criada, mas falha no login automático. " +
+            "Tente fazer login manualmente.",
+        });
+        return;
+      }
+
+      // Login OK: usa window.location.href (full page navigation) em vez
+      // de router.push + router.refresh. Garante que o cookie de sessão
+      // foi processado pelo browser antes da próxima request, evitando
+      // race condition que causava o redirect de volta pro login.
+      window.location.href = "/conexao";
     } catch (e: any) {
       setState({ kind: "error", message: "Erro de rede" });
     }
@@ -99,14 +131,20 @@ export default function InviteAcceptForm() {
     );
   }
 
-  if (state.kind === "done") {
+  // NOVO: estado "signingIn" — mostra feedback visual claro enquanto
+  // o signIn acontece e a navegação é feita. Substitui o antigo "done"
+  // que piscava e não dava tempo do usuário ver.
+  if (state.kind === "signingIn") {
     return (
       <Card>
         <CardContent className="py-10 flex flex-col items-center gap-3 text-center">
-          <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <h2 className="text-lg font-semibold">Conta criada!</h2>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Bem-vindo ao <strong>{state.tenantName}</strong>. Redirecionando para o login…
+            Conectando como <strong>{state.email}</strong>…
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Você será redirecionado para o <strong>{state.tenantName}</strong> em instantes.
           </p>
         </CardContent>
       </Card>

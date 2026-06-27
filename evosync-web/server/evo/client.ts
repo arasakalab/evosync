@@ -352,14 +352,15 @@ export class EvoClient {
 
   /**
    * Deleta uma instância completamente (logout + remove do DB + apaga sessão).
-   * Endpoint: DELETE /instance/{instanceName}
+   * Endpoint: DELETE /instance/delete/{instanceName}
+   * Nota: NÃO é DELETE /instance/{name} — esse retorna 404.
    */
   async deleteInstance(
     instanceName: string
   ): Promise<{ ok: boolean; info: string }> {
     const r = await this.request(
       "DELETE",
-      this.url("instance", instanceName)
+      this.url("instance", "delete", instanceName)
     );
     if (r.status === 200 || r.status === 204) {
       return { ok: true, info: "instância deletada" };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { Cable, Save, Play, Eye, EyeOff, Loader2, CheckCircle2, XCircle, Info, Server } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,6 +13,7 @@ import { api } from "@/lib/api";
 import type { Settings } from "@/lib/types";
 import { Separator } from "@/components/ui/separator";
 import ManagedConnectionCard from "./managed-card";
+import ConnectionNotice from "./connection-notice";
 
 /**
  * Aba Conexão — branch por evoMode:
@@ -25,13 +26,23 @@ import ManagedConnectionCard from "./managed-card";
  */
 export default function ConexaoPage() {
   const settings = useAppStore((s) => s.settings);
+  const selectionLoaded = useAppStore((s) => s.selectionLoaded);
   const setSettings = useAppStore((s) => s.setSettings);
   const setConnection = useAppStore((s) => s.setConnection);
 
+  // Espera o AppShell carregar as settings reais antes de decidir
+  // qual card mostrar. Sem isso, o store tem `evo_mode: "byo"` (default)
+  // e o usuário vê o form BYO vazio por ~300ms antes do QR code.
+  // Esse loading evita a "tela escura" com form errado.
+  if (!selectionLoaded) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   // Tenant em modo managed? Mostra o card de QR.
-  // Importante: settings.evo_mode pode ser "byo" no SSR/initial render antes
-  // de carregar do /api/settings. Mas como o Settings vem do server no
-  // primeiro render via getServerSideProps / loader, deve estar correto.
   if (settings.evo_mode === "managed") {
     return (
       <div className="space-y-6">
@@ -45,6 +56,9 @@ export default function ConexaoPage() {
             abaixo para parear.
           </p>
         </header>
+        <Suspense fallback={null}>
+          <ConnectionNotice />
+        </Suspense>
         <ManagedConnectionCard />
       </div>
     );

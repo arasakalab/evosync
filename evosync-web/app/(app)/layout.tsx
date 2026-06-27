@@ -1,21 +1,21 @@
 /**
- * Layout do route group (app) — APLICAR o AppShell + auth guard + license guard.
+ * Layout do route group (app) — AppShell + auth guard + license guard +
+ * managed connection guard.
  *
- * Por que route group com (parens)?
- *  - O root `app/layout.tsx` precisa ser LEVE (só html, body, Providers)
- *  - Páginas com chrome (sidebar, header, statusbar) ficam em (app)/
- *  - Páginas sem chrome (admin login, futuras landing pages) ficam fora
+ * Guards em ordem:
+ *  1. Sem sessão → /admin/login
+ *  2. super_admin (sem tenant) → /admin
+ *  3. License inválida → /license-expired
+ *  4. **Tenant managed MAS WhatsApp não conectado** → /conexao
+ *     (exceto se já está em /conexao — aí deixa acessar)
  *
- * Route groups (parens) NÃO afetam a URL: `(app)/conexao` vira `/conexao`.
- *
- * Auth + License (Fase 2 + 3 do SaaS):
- *  - Sem sessão → /admin/login?callbackUrl=
- *  - Com sessão, mas tenantId (e license vencida) → /license-expired
- *  - super_admin (tenantId null) → /admin (este layout é só pra operators)
+ * O pathname vem do header `x-pathname` setado pelo middleware.
  */
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { isLicenseValid } from "@/lib/license";
+import { checkManagedConnection } from "@/server/store/managed-guard";
 import { AppShell } from "@/components/layout/app-shell";
 
 export default async function AppRouteLayout({
@@ -29,15 +29,26 @@ export default async function AppRouteLayout({
     redirect("/admin/login?callbackUrl=/");
   }
 
-  // super_admin (sem tenant) NÃO deve usar o app do operator — redireciona pro admin
   if (!session.user.tenantId) {
     redirect("/admin");
   }
 
-  // License check
   const valid = await isLicenseValid(session.user.tenantId);
   if (!valid) {
     redirect("/license-expired");
+  }
+
+  // Managed connection guard
+  const headersList = headers();
+  const pathname = headersList.get("x-pathname") || "/";
+  const guard = checkManagedConnection(session.user.tenantId);
+  if (guard.blocked) {
+    // BYO + sem credenciais = também bloqueia, mas é uma mensagem
+    // diferente (handled na própria página /conexao)
+    if (pathname !== "/conexao") {
+      const reason = guard.reason || "blocked";
+      redirect(`/conexao?reason=${encodeURIComponent(reason)}`);
+    }
   }
 
   return <AppShell>{children}</AppShell>;

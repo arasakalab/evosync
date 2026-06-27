@@ -6,6 +6,7 @@ import { loadTenantSettings } from "@/server/store/settings";
 import { sender } from "@/server/sender/manager";
 import { jsonError, parseJsonBody, requireTenantId, validateWith } from "@/lib/api-helpers";
 import { checkWatchdogPause } from "@/server/store/watchdog";
+import { checkManagedConnection } from "@/server/store/managed-guard";
 import fs from "node:fs";
 import { hub } from "@/server/ws/hub";
 import type { Contact } from "@/lib/types";
@@ -93,6 +94,16 @@ export async function POST(req: NextRequest) {
         `Motivo: ${watchdogPause.reason}. ` +
         `Contate o administrador para liberar.`,
       423 // Locked
+    );
+  }
+
+  // Managed connection: se tenant é managed e WhatsApp não está conectado,
+  // recusa (defense-in-depth — UI já bloqueia via layout, mas API confirma)
+  const connGuard = checkManagedConnection(tenantId!);
+  if (connGuard.blocked && connGuard.reason === "managed_not_connected") {
+    return jsonError(
+      "WhatsApp não está conectado. Conecte seu WhatsApp na aba Conexão antes de enviar.",
+      423
     );
   }
 

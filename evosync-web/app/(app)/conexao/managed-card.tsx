@@ -37,6 +37,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { api } from "@/lib/api";
+import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { ManagedStatus } from "@/lib/types";
 
@@ -55,6 +56,19 @@ interface QrResponse {
   cached: boolean;
   state: string | null;
   error: string | null;
+}
+
+/**
+ * Formata o pairing code para ficar mais legível.
+ * A Evolution API retorna algo tipo "ABC1-DEF2-GHI3" (já com hífens) ou
+ * "ABCDEFGHIJKL" sem formatação. Adiciona hífens a cada 4 chars se não
+ * tiver, preserva formatação existente.
+ */
+function formatPairingCode(raw: string): string {
+  const clean = raw.replace(/[-\s]/g, "").toUpperCase();
+  if (clean.length === 0) return raw;
+  if (raw.includes("-")) return raw.toUpperCase();
+  return clean.match(/.{1,4}/g)?.join("-") ?? raw;
 }
 
 const STATUS_COPY: Record<
@@ -103,10 +117,31 @@ export default function ManagedConnectionCard() {
   const [countdown, setCountdown] = useState(0);
   const cancelled = useRef(false);
 
+  // Store global — quando status mudar, propaga o managed_status pra cá
+  // pra que o AppShell reavalie o guard e libere o menu lateral
+  // automaticamente (sem precisar F5).
+  const setSettings = useAppStore((s) => s.setSettings);
+  const currentManagedStatus = useAppStore(
+    (s) => s.settings.managed_status
+  );
+
   const fetchStatus = useCallback(async () => {
     try {
       const s = await api.connection.status();
       setStatus(s);
+
+      // Propaga o managed_status pro store global SE mudou.
+      // Isso desbloqueia o menu lateral automaticamente quando o
+      // usuário escaneia o QR e o status vai de "ready" → "connected".
+      if (s.managedStatus && s.managedStatus !== currentManagedStatus) {
+        // Pega settings atual e faz merge parcial
+        const current = useAppStore.getState().settings;
+        setSettings({ ...current, managed_status: s.managedStatus });
+        // Feedback visual
+        if (s.managedStatus === "connected") {
+          toast.success("WhatsApp conectado! Menu liberado.");
+        }
+      }
     } catch (e: any) {
       setStatus({
         ok: false,
@@ -118,7 +153,7 @@ export default function ManagedConnectionCard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentManagedStatus, setSettings]);
 
   const fetchQr = useCallback(async () => {
     // Só busca QR se estiver em "ready" (instância existe, aguardando pareamento)
@@ -298,14 +333,24 @@ export default function ManagedConnectionCard() {
                 </div>
               </div>
 
-              {qr?.qr?.code && (
-                <div className="text-center">
-                  <div className="text-xs text-muted-foreground mb-1">
+              {qr?.qr?.pairingCode && (
+                <div className="flex flex-col items-center gap-1.5">
+                  <div className="text-xs text-muted-foreground">
                     Ou use o código de pareamento:
                   </div>
-                  <code className="text-sm font-mono font-bold tracking-wider text-foreground bg-surface-alt px-3 py-1.5 rounded-md border border-border">
-                    {qr.qr.code}
+                  <code
+                    onClick={() => {
+                      navigator.clipboard.writeText(qr.qr!.pairingCode!);
+                      toast.success("Código copiado");
+                    }}
+                    title="Clique para copiar"
+                    className="cursor-pointer select-all text-base sm:text-lg font-mono font-bold tracking-[0.2em] text-foreground bg-surface-alt hover:bg-surface px-4 py-2 rounded-md border border-border max-w-full break-all text-center transition-colors"
+                  >
+                    {formatPairingCode(qr.qr.pairingCode)}
                   </code>
+                  <div className="text-[10px] text-muted-foreground/70">
+                    Clique para copiar
+                  </div>
                 </div>
               )}
 

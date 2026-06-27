@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Cable, Users, MessageSquare, Send, CalendarClock } from "lucide-react";
+import { Cable, Users, MessageSquare, Send, CalendarClock, Lock } from "lucide-react";
 
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
@@ -22,6 +22,7 @@ const navItems = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const settings = useAppStore((s) => s.settings);
   const setConnection = useAppStore((s) => s.setConnection);
   const setStatus = useAppStore((s) => s.setStatus);
   const setContacts = useAppStore((s) => s.setContacts);
@@ -91,9 +92,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (pathname === "/") router.replace("/conexao");
   }, [pathname, router]);
 
+  // Re-busca settings a cada navegação. Importante: quando o managed_status
+  // muda (ex: usuário acabou de escanear o QR e status vai de "ready" pra
+  // "connected"), precisamos saber disso pra desbloquear o menu.
+  useEffect(() => {
+    (async () => {
+      try {
+        const fresh = await api.settings.get();
+        // Só atualiza se mudou (evita re-renders desnecessários)
+        if (fresh.managed_status !== settings.managed_status ||
+            fresh.evo_mode !== settings.evo_mode) {
+          setSettings(fresh);
+        }
+      } catch {
+        // silencioso
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  // Managed connection guard (Fase B+): se tenant é managed e WhatsApp
+  // não está conectado, força redirect pra /conexao. Este useEffect roda
+  // em toda mudança de pathname (client-side), cobrindo o gap do layout
+  // server-side que NÃO re-executa em navegações dentro do mesmo grupo.
+  const isManagedLocked =
+    settings.evo_mode === "managed" &&
+    settings.managed_status !== null &&
+    settings.managed_status !== "connected";
+
+  useEffect(() => {
+    if (isManagedLocked && pathname !== "/conexao") {
+      router.replace("/conexao?reason=managed_not_connected");
+    }
+  }, [isManagedLocked, pathname, router]);
+
+  // Determina quais items estão bloqueados (todos exceto /conexao)
+  const itemsWithLock = navItems.map((item) => ({
+    ...item,
+    locked: isManagedLocked && item.href !== "/conexao",
+  }));
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg text-text">
-      <Sidebar items={navItems} pathname={pathname || "/"} />
+      <Sidebar items={itemsWithLock} pathname={pathname || "/"} />
       <div className="flex flex-1 flex-col min-w-0">
         <Header />
         <main className="flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
