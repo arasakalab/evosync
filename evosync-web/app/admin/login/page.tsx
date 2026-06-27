@@ -7,7 +7,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   ArrowRight,
-  Cable,
   CheckCircle2,
   Loader2,
   Lock,
@@ -140,29 +139,27 @@ function LoginFormFallback() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen w-full flex bg-background">
-      {/* === LADO ESQUERDO: brand/ilustração === */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-surface-sunken">
-        {/* Decorative gradients */}
-        <div className="absolute inset-0">
+    <div className="min-h-[100dvh] w-full flex flex-col lg:flex-row bg-background overflow-hidden">
+      {/* === LADO ESQUERDO: brand (desktop) === */}
+      <div className="hidden lg:flex lg:w-1/2 lg:max-w-[720px] lg:shrink-0 relative overflow-hidden bg-surface-sunken">
+        <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 left-0 h-full w-full bg-gradient-radial" />
           <div className="absolute -top-40 -left-40 h-96 w-96 rounded-full bg-primary/20 blur-3xl animate-pulse-soft" />
           <div className="absolute -bottom-40 -right-20 h-96 w-96 rounded-full bg-info/15 blur-3xl animate-pulse-soft" />
           <div className="absolute inset-0 bg-grid opacity-30" />
         </div>
 
-        <div className="relative flex flex-col justify-between p-12 w-full">
-          {/* Top: logo + theme toggle */}
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2.5 group">
-              <div className="relative">
+        <div className="relative flex flex-col min-h-[100dvh] w-full overflow-y-auto">
+          <header className="shrink-0 flex items-center justify-between gap-4 px-10 xl:px-14 pt-10 xl:pt-12 pb-4">
+            <Link href="/" className="flex items-center gap-3 group min-w-0">
+              <div className="relative shrink-0">
                 <div className="absolute inset-0 rounded-xl bg-primary/40 blur-md" />
-                <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-primary shadow-elev-2 shadow-primary/40">
+                <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary shadow-elev-2 shadow-primary/40">
                   <BrandMark className="h-5 w-5 text-white" />
                 </div>
               </div>
-              <div className="leading-tight">
-                <div className="text-base font-bold font-display text-foreground">
+              <div className="leading-tight min-w-0">
+                <div className="text-lg font-bold font-display text-foreground">
                   EvoSync
                 </div>
                 <div className="text-2xs uppercase tracking-widest text-muted-foreground">
@@ -171,100 +168,114 @@ export default function LoginPage() {
               </div>
             </Link>
             <ThemeToggle />
-          </div>
+          </header>
 
-          {/* Middle: hero */}
-          <div className="space-y-6 max-w-md">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary-subtle px-3 py-1 text-xs font-medium text-primary">
-              <Sparkles className="h-3 w-3" />
-              Disparador profissional para WhatsApp
+          <main className="flex-1 flex flex-col justify-center px-10 xl:px-14 py-10 xl:py-14">
+            <div className="w-full max-w-lg space-y-8">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary-subtle px-3.5 py-1.5 text-xs font-medium text-primary">
+                <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                Disparador profissional para WhatsApp
+              </div>
+
+              <div className="space-y-5">
+                <h1 className="text-3xl xl:text-[2.75rem] font-bold font-display tracking-tight text-foreground leading-[1.15]">
+                  Suas campanhas no WhatsApp dos clientes.
+                  <span className="mt-2 block text-gradient-primary">
+                    Direto, pessoal, em escala.
+                  </span>
+                </h1>
+                <p className="text-base text-muted-foreground leading-relaxed">
+                  Importe seus contatos, escreva a mensagem usando{" "}
+                  <code className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground">
+                    {"{nome}"}
+                  </code>{" "}
+                  e{" "}
+                  <code className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground">
+                    {"{empresa}"}
+                  </code>
+                  , e dispare para quem você quiser, na hora que quiser. A gente
+                  cuida dos delays, do aquecimento da conta e do respeito a quem
+                  pediu pra sair.
+                </p>
+              </div>
+
+              <ul className="space-y-4 border-t border-border/60 pt-8">
+                {[
+                  { icon: Zap, text: "Conecte seu WhatsApp em 1 minuto, escaneando QR" },
+                  { icon: Shield, text: "Delays aleatórios + aquecimento gradual anti-ban" },
+                  {
+                    icon: CheckCircle2,
+                    text: "Personalize cada mensagem com {nome}, {empresa}, {cidade}",
+                  },
+                ].map((feat) => (
+                  <li
+                    key={feat.text}
+                    className="flex items-start gap-3 text-sm text-foreground/85 leading-relaxed"
+                  >
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-subtle ring-1 ring-primary/20">
+                      <feat.icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="pt-1">{feat.text}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <h1 className="text-4xl xl:text-5xl font-bold font-display tracking-tight text-foreground leading-[1.1]">
-              Suas campanhas no WhatsApp dos clientes.
-              <span className="text-gradient-primary"> Direto, pessoal, em escala.</span>
-            </h1>
-            <p className="text-base text-muted-foreground max-w-md leading-relaxed">
-              Importe seus contatos, escreva a mensagem usando{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground">
-                {"{nome}"}
-              </code>{" "}
-              e{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground">
-                {"{empresa}"}
-              </code>
-              , e dispare para quem você quiser, na hora que quiser. A gente
-              cuida dos delays, do aquecimento da conta e do respeito a quem
-              pediu pra sair.
-            </p>
+          </main>
 
-            {/* Feature pills */}
-            <ul className="space-y-2.5 pt-2">
-              {[
-                { icon: Zap, text: "Conecte seu WhatsApp em 1 minuto, escaneando QR" },
-                { icon: Shield, text: "Delays aleatórios + aquecimento gradual anti-ban" },
-                { icon: CheckCircle2, text: "Personalize cada mensagem com {nome}, {empresa}, {cidade}" },
-              ].map((feat) => (
-                <li
-                  key={feat.text}
-                  className="flex items-center gap-2.5 text-sm text-foreground/80"
-                >
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-subtle ring-1 ring-primary/20">
-                    <feat.icon className="h-3.5 w-3.5 text-primary" />
-                  </div>
-                  {feat.text}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Bottom: footer */}
-          <div className="text-xs text-muted-foreground">
+          <footer className="shrink-0 px-10 xl:px-14 pb-10 xl:pb-12 pt-4 text-xs text-muted-foreground">
             v1.1.0 · Next.js 14 ·{" "}
             <span className="text-foreground/60">
               {new Date().getFullYear()} Arasaka Lab
             </span>
-          </div>
+          </footer>
         </div>
       </div>
 
-      {/* === LADO DIREITO: form === */}
-      <div className="flex-1 flex flex-col">
-        <div className="flex justify-end p-4 lg:hidden">
+      {/* === LADO DIREITO: formulário === */}
+      <div className="flex-1 flex flex-col min-h-[100dvh] min-w-0 overflow-y-auto">
+        <div className="flex justify-end p-4 sm:p-5 lg:hidden shrink-0">
           <ThemeToggle />
         </div>
 
-        <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
-          <div className="w-full max-w-sm">
-            {/* Mobile-only brand */}
-            <div className="lg:hidden flex flex-col items-center gap-3 mb-8">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-primary shadow-elev-2 shadow-primary/40">
-                <BrandMark className="h-6 w-6 text-white" />
-              </div>
-              <div className="text-center">
-                <h1 className="text-2xl font-bold font-display text-foreground">
-                  EvoSync
-                </h1>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  Painel administrativo
+        <div className="flex-1 flex items-center justify-center px-5 sm:px-8 lg:px-12 py-8 sm:py-12 lg:py-16">
+          <div className="w-full max-w-[420px]">
+            {/* Brand mobile / tablet */}
+            <div className="lg:hidden mb-10 sm:mb-12">
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-primary shadow-elev-2 shadow-primary/40">
+                  <BrandMark className="h-7 w-7 text-white" />
+                </div>
+                <div className="space-y-2">
+                  <h1 className="text-3xl font-bold font-display text-foreground tracking-tight">
+                    EvoSync
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Painel administrativo
+                  </p>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed max-w-xs pt-1">
+                  Disparos no WhatsApp com delays inteligentes e personalização por contato.
                 </p>
               </div>
             </div>
 
-            {/* Header (desktop) */}
-            <div className="hidden lg:block mb-8">
-              <h2 className="text-2xl font-bold font-display tracking-tight text-foreground">
-                Bem-vindo de volta
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1.5">
-                Acesse sua conta para gerenciar tenants e licenças.
-              </p>
+            <div className="rounded-2xl border border-border bg-surface/80 p-6 sm:p-8 shadow-elev-1 backdrop-blur-sm">
+              <div className="mb-8 space-y-2">
+                <h2 className="text-2xl font-bold font-display tracking-tight text-foreground">
+                  <span className="lg:hidden">Entrar</span>
+                  <span className="hidden lg:inline">Bem-vindo de volta</span>
+                </h2>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Acesse sua conta para gerenciar campanhas, contatos e conexões.
+                </p>
+              </div>
+
+              <Suspense fallback={<LoginFormFallback />}>
+                <LoginForm />
+              </Suspense>
             </div>
 
-            <Suspense fallback={<LoginFormFallback />}>
-              <LoginForm />
-            </Suspense>
-
-            <p className="text-center text-xs text-muted-foreground mt-6">
+            <p className="text-center text-xs text-muted-foreground mt-6 leading-relaxed px-2">
               Acesso restrito a super admins e usuários autorizados.
             </p>
           </div>
