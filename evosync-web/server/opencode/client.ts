@@ -66,7 +66,18 @@ function polishMessage(text: string): string {
   return t.trim();
 }
 
-function whichOpencode(): string | null {
+function resolveOpencode(): string | null {
+  const configured = (process.env.OPENCODE_BIN || "").trim();
+  if (configured) {
+    try {
+      if (fs.existsSync(configured) && fs.statSync(configured).isFile()) {
+        return configured;
+      }
+    } catch {
+      /* noop */
+    }
+  }
+
   const env = process.env.PATH || "";
   const sep = process.platform === "win32" ? ";" : ":";
   for (const dir of env.split(sep)) {
@@ -80,6 +91,33 @@ function whichOpencode(): string | null {
     }
   }
   return null;
+}
+
+function opencodeSpawnEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  const home = (process.env.OPENCODE_HOME || "").trim();
+  if (home) {
+    env.HOME = home;
+  }
+  if (process.env.OPENCODE_CONFIG) {
+    env.OPENCODE_CONFIG = process.env.OPENCODE_CONFIG;
+  }
+  if (process.env.XDG_CONFIG_HOME) {
+    env.XDG_CONFIG_HOME = process.env.XDG_CONFIG_HOME;
+  }
+  if (process.env.XDG_DATA_HOME) {
+    env.XDG_DATA_HOME = process.env.XDG_DATA_HOME;
+  }
+  return env;
+}
+
+export function opencodeAuthHint(): string | null {
+  const nvidia = (process.env.NVIDIA_API_KEY || "").trim();
+  const zen = (process.env.OPENCODE_API_KEY || process.env.OPENCODE_ZEN_API_KEY || "").trim();
+  if (nvidia || zen) return null;
+  return (
+    "Configure NVIDIA_API_KEY (build.nvidia.com) ou OPENCODE_API_KEY (OpenCode Zen) em /opt/evosync/.env e reinicie o serviço."
+  );
 }
 
 export class OpenCodeMessageClient {
@@ -99,12 +137,28 @@ export class OpenCodeMessageClient {
       return { ok: false, result: "Arquivo não encontrado." };
     }
 
-    const executable = whichOpencode();
+    const executable = resolveOpencode();
     if (!executable) {
-      return { ok: false, result: "OpenCode não encontrado no PATH." };
+      return {
+        ok: false,
+        result:
+          "OpenCode não encontrado. Instale o CLI ou defina OPENCODE_BIN em /opt/evosync/.env.",
+      };
     }
 
-    const args = ["run", PROMPT, "--file", filePath, "--print-logs=false"];
+    const authHint = opencodeAuthHint();
+    if (authHint) {
+      return { ok: false, result: authHint };
+    }
+
+    const args = [
+      "run",
+      PROMPT,
+      "--file",
+      filePath,
+      "--print-logs=false",
+      "--dangerously-skip-permissions",
+    ];
     if (this.model) args.push("--model", this.model);
 
     return new Promise<{ ok: boolean; result: string }>((resolve) => {
@@ -114,6 +168,7 @@ export class OpenCodeMessageClient {
 
       const child = spawn(executable, args, {
         stdio: ["ignore", "pipe", "pipe"],
+        env: opencodeSpawnEnv(),
       });
 
       const timer = setTimeout(() => {

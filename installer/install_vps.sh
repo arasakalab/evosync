@@ -47,6 +47,9 @@ if [ "$UPDATE_ONLY" = "1" ]; then
   cd "$APP_DIR/evosync-web"
   sudo -u "$APP_USER" npm ci
   sudo -u "$APP_USER" npx next build
+  if [ -x "$APP_DIR/installer/setup_opencode.sh" ]; then
+    bash "$APP_DIR/installer/setup_opencode.sh" || log "Aviso: setup OpenCode falhou (opcional)"
+  fi
   systemctl restart evosync
   log "Update concluído. Status: systemctl status evosync"
   exit 0
@@ -166,7 +169,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/opt/evosync/evosync-web/data /opt/evosync/evosync-web/logs /opt/evosync/evosync-web/uploads
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ReadWritePaths=/opt/evosync/evosync-web/data /opt/evosync/evosync-web/logs /opt/evosync/evosync-web/uploads /opt/evosync/opencode
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "nvidia/meta/llama-3.2-90b-vision-instruct",
+  "provider": {
+    "nvidia": {
+      "options": {
+        "apiKey": "{env:NVIDIA_API_KEY}"
+      }
+    },
+    "opencode": {
+      "options": {
+        "apiKey": "{env:OPENCODE_API_KEY}"
+      }
+    }
+  }
+}
